@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
   --bg:#0B0E12; --surface:#12161C; --surface-2:#171C24; --surface-3:#1D232D;
@@ -325,7 +326,6 @@ pre{background:var(--surface-2); padding:10px; border-radius:8px; font-size:11px
         <label>Factor<input type="text" name="factor" placeholder="Quality / Value / Growth / Speculative / Blend"></label>
         <label>Risk (3-9)<input type="number" name="risk" min="3" max="9" step="1"></label>
         <label>Quantità<input type="number" name="quantity" step="any" required></label>
-        <label>Prezzo ultimo acquisto (unitario)<input type="number" name="purchasePrice" step="any"></label>
         <label>Costo medio ponderato (unitario)<input type="number" name="avgPurchasePrice" step="any"></label>
         <label>Peso ideale %<input type="number" name="pesoIdeale" step="0.1" min="0" max="100"></label>
       </div>
@@ -348,7 +348,7 @@ pre{background:var(--surface-2); padding:10px; border-radius:8px; font-size:11px
     <div class="modal-header"><h2>Importa CSV</h2><button class="modal-close">✕</button></div>
     <p class="hint">
       Incolla il CSV esportato dal tuo file Numbers. Intestazioni riconosciute (case-insensitive):
-      <code>Ticker, Name, Nation, Sector, Subsector, Factor, Risk, Quantity, Purchase price, Average Purchase Price, peso ideale %</code>.
+      <code>Ticker, Name, Nation, Sector, Subsector, Factor, Risk, Quantity, Average Purchase Price, peso ideale %</code>.
       Prezzo, Market Value, Peso reale e Profit vengono ricalcolati automaticamente e non serve importarli.
     </p>
     <div class="radio-row">
@@ -378,17 +378,44 @@ pre{background:var(--surface-2); padding:10px; border-radius:8px; font-size:11px
         <div class="checkbox-row"><input type="checkbox" name="allowFractional" id="allowFractional"><label for="allowFractional" style="margin:0">Consenti quote frazionarie nel calcolo azioni</label></div>
       </div>
       <div class="settings-section">
-        <h3>Sync su Supabase (opzionale)</h3>
-        <p class="hint">Crea una tabella <code>portfolio_dashboard</code> con colonne <code>id text primary key, data jsonb, updated_at timestamptz</code> e usa la anon key del progetto.</p>
+        <h3>Sync su Supabase (opzionale, con RLS)</h3>
+        <p class="hint">
+          Ogni dispositivo si autentica in modo anonimo (via Supabase Auth) e vede solo la propria riga,
+          protetta da Row Level Security — sicuro anche con repo GitHub pubblico. SQL da eseguire una volta nel progetto Supabase:
+        </p>
+        <pre>create table portfolio_dashboard (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table portfolio_dashboard enable row level security;
+create policy "select_own" on portfolio_dashboard for select using (auth.uid() = user_id);
+create policy "insert_own" on portfolio_dashboard for insert with check (auth.uid() = user_id);
+create policy "update_own" on portfolio_dashboard for update using (auth.uid() = user_id) with check (auth.uid() = user_id);</pre>
+        <p class="hint">Serve anche attivare "Anonymous sign-ins" in Authentication → Sign In / Providers nel dashboard Supabase.</p>
         <div class="form-grid">
           <label class="full">Supabase URL<input type="url" name="supabaseUrl" placeholder="https://xxxx.supabase.co"></label>
-          <label class="full">Anon key<input type="password" name="supabaseKey"></label>
-          <label>Profilo<input type="text" name="supabaseProfile" placeholder="alessandro"></label>
-          <label style="flex-direction:row; align-items:center; gap:8px; margin-top:18px;"><input type="checkbox" name="supabaseEnabled" id="supabaseEnabled" style="width:auto"> Attiva sync</label>
+          <label class="full">Anon key (o Publishable key)<input type="password" name="supabaseKey"></label>
+          <label style="flex-direction:row; align-items:center; gap:8px; margin-top:6px;"><input type="checkbox" name="supabaseEnabled" id="supabaseEnabled" style="width:auto"> Attiva sync</label>
         </div>
         <div class="form-actions" style="justify-content:flex-start; margin-top:12px;">
           <button type="button" class="btn" id="supabase-save-btn">☁ Salva ora</button>
           <button type="button" class="btn" id="supabase-load-btn">⬇ Carica da cloud</button>
+        </div>
+        <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border-soft);">
+          <p class="hint" style="margin-top:0">
+            <strong>Collegare un altro dispositivo:</strong> genera qui il token su questo dispositivo, poi incollalo nelle Impostazioni dell'altro dispositivo. È un segreto personale: non condividerlo e non salvarlo nel codice.
+          </p>
+          <div class="form-actions" style="justify-content:flex-start;">
+            <button type="button" class="btn" id="supabase-show-token-btn">🔑 Mostra token di questo dispositivo</button>
+          </div>
+          <input type="text" id="supabase-token-display" readonly placeholder="Il token apparirà qui…" style="width:100%; margin-top:8px; font-family:var(--font-mono); font-size:11px;">
+          <div class="form-grid" style="margin-top:12px;">
+            <label class="full">Incolla token da un altro dispositivo<input type="text" id="supabase-link-input" placeholder="Incolla qui il token…"></label>
+          </div>
+          <div class="form-actions" style="justify-content:flex-start;">
+            <button type="button" class="btn" id="supabase-link-btn">🔗 Collega questo dispositivo</button>
+          </div>
         </div>
       </div>
       <div class="form-actions">
@@ -424,7 +451,7 @@ const DEFAULT_SETTINGS = {
   toleranceYellow: 2,   // pp di scostamento oltre cui = giallo
   toleranceRed: 5,      // pp di scostamento oltre cui = rosso
   allowFractional: false,
-  supabase: { url: '', anonKey: '', profileKey: 'alessandro', enabled: false }
+  supabase: { url: '', anonKey: '', enabled: false }
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -498,8 +525,7 @@ function normalizePosition(p) {
     currency: p.currency || detectCurrency(p.ticker),
     price: p.price != null ? Number(p.price) : null,       // prezzo corrente, valuta locale
     quantity: Number(p.quantity) || 0,
-    purchasePrice: Number(p.purchasePrice) || 0,            // prezzo unitario ultimo acquisto
-    avgPurchasePrice: Number(p.avgPurchasePrice) || Number(p.purchasePrice) || 0, // costo medio ponderato
+    avgPurchasePrice: Number(p.avgPurchasePrice) || 0, // costo medio ponderato per unità
     pesoIdeale: p.pesoIdeale != null ? Number(p.pesoIdeale) : 0, // % target, manuale
     priceStale: !!p.priceStale,
     lastPriceUpdate: p.lastPriceUpdate || null
@@ -518,11 +544,10 @@ function computeRows() {
     const rate = fx(p.currency);
     const priceOk = p.price != null && rate != null;
     const marketValue = priceOk ? p.quantity * p.price * rate : null;
-    const unitValue = priceOk ? p.quantity * p.purchasePrice * rate : null; // Quantità × Purchase price (definizione utente)
     const costBasis = rate != null ? p.quantity * p.avgPurchasePrice * rate : null; // per P&L reale
     const profit = (marketValue != null && costBasis != null) ? marketValue - costBasis : null;
     const profitPct = (profit != null && costBasis) ? (profit / costBasis) * 100 : null;
-    return { ...p, rate, marketValue, unitValue, costBasis, profit, profitPct };
+    return { ...p, rate, marketValue, costBasis, profit, profitPct };
   });
 
   const totalValue = rows.reduce((s, r) => s + (r.marketValue || 0), 0);
@@ -599,47 +624,93 @@ function loadLocal() {
   } catch (e) { console.error('Caricamento locale fallito', e); }
 }
 
-/* ---------- Sync Supabase (REST, opzionale) ---------- */
+/* ---------- Sync Supabase (supabase-js SDK, auth anonima + RLS) ----------
+   Ogni dispositivo ottiene un utente Supabase anonimo persistente (via
+   supabase-js, che gestisce sessione/refresh in autonomia). Le righe della
+   tabella sono protette da Row Level Security legata a auth.uid(), quindi
+   anche con anon key pubblica (es. repo GitHub pubblico) nessun altro può
+   leggere o scrivere i tuoi dati reali. Per sincronizzare più dispositivi
+   si copia il "token di collegamento" (refresh token) da uno all'altro. */
+
+let sbClient = null;
+
+function getSupabaseClient() {
+  const { url, anonKey } = state.settings.supabase;
+  if (!url || !anonKey) return null;
+  if (typeof window.supabase === 'undefined' || !window.supabase.createClient) return null;
+  if (!sbClient || sbClient.__pfdUrl !== url || sbClient.__pfdKey !== anonKey) {
+    const { createClient } = window.supabase;
+    sbClient = createClient(url, anonKey, {
+      auth: { persistSession: true, autoRefreshToken: true, storageKey: 'pfd_supabase_auth_v1' }
+    });
+    sbClient.__pfdUrl = url;
+    sbClient.__pfdKey = anonKey;
+  }
+  return sbClient;
+}
+
+async function ensureSupabaseSession(manualRefreshToken) {
+  const client = getSupabaseClient();
+  if (!client) throw new Error('Configura URL e anon key di Supabase prima di continuare');
+
+  if (manualRefreshToken) {
+    const { data, error } = await client.auth.refreshSession({ refresh_token: manualRefreshToken });
+    if (error) throw error;
+    return data.session;
+  }
+
+  const { data: sessionData } = await client.auth.getSession();
+  if (sessionData && sessionData.session) return sessionData.session;
+
+  const { data, error } = await client.auth.signInAnonymously();
+  if (error) throw error;
+  return data.session;
+}
 
 async function supabaseSave() {
-  const { url, anonKey, profileKey, enabled } = state.settings.supabase;
-  if (!enabled || !url || !anonKey) throw new Error('Supabase non configurato');
-  const payload = [{
-    id: profileKey || 'default',
+  const client = getSupabaseClient();
+  if (!client) throw new Error('Supabase non configurato (URL/anon key mancanti)');
+  const session = await ensureSupabaseSession();
+  const { error } = await client.from('portfolio_dashboard').upsert({
+    user_id: session.user.id,
     data: { positions: state.positions, settings: state.settings, history: state.history },
     updated_at: new Date().toISOString()
-  }];
-  const res = await fetch(`${url.replace(/\/$/, '')}/rest/v1/portfolio_dashboard`, {
-    method: 'POST',
-    headers: {
-      'apikey': anonKey,
-      'Authorization': `Bearer ${anonKey}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'resolution=merge-duplicates'
-    },
-    body: JSON.stringify(payload)
   });
-  if (!res.ok) throw new Error('Supabase save HTTP ' + res.status);
+  if (error) throw error;
   return true;
 }
 
 async function supabaseLoad() {
-  const { url, anonKey, profileKey, enabled } = state.settings.supabase;
-  if (!enabled || !url || !anonKey) throw new Error('Supabase non configurato');
-  const res = await fetch(
-    `${url.replace(/\/$/, '')}/rest/v1/portfolio_dashboard?id=eq.${encodeURIComponent(profileKey || 'default')}&select=data`,
-    { headers: { 'apikey': anonKey, 'Authorization': `Bearer ${anonKey}` } }
-  );
-  if (!res.ok) throw new Error('Supabase load HTTP ' + res.status);
-  const json = await res.json();
-  if (json && json[0] && json[0].data) {
-    const d = json[0].data;
+  const client = getSupabaseClient();
+  if (!client) throw new Error('Supabase non configurato (URL/anon key mancanti)');
+  const session = await ensureSupabaseSession();
+  const { data, error } = await client
+    .from('portfolio_dashboard')
+    .select('data')
+    .eq('user_id', session.user.id)
+    .maybeSingle();
+  if (error) throw error;
+  if (data && data.data) {
+    const d = data.data;
     if (d.positions) state.positions = d.positions.map(normalizePosition);
     if (d.settings) state.settings = { ...deepClone(DEFAULT_SETTINGS), ...d.settings };
     if (d.history) state.history = d.history;
     return true;
   }
   return false;
+}
+
+async function getDeviceLinkToken() {
+  const client = getSupabaseClient();
+  if (!client) throw new Error('Supabase non configurato');
+  const session = await ensureSupabaseSession();
+  return session.refresh_token;
+}
+
+async function linkDevice(refreshToken) {
+  if (!refreshToken || !refreshToken.trim()) throw new Error('Incolla un token di collegamento valido');
+  await ensureSupabaseSession(refreshToken.trim());
+  return true;
 }
 
 /* ---------- Fetch prezzi Yahoo Finance via proxy CORS (stessa strategia di MomentumIQ/TrendIQ) ---------- */
@@ -740,7 +811,6 @@ const HEADER_MAP = {
   ticker: 'ticker', name: 'name', nation: 'nation', sector: 'sector',
   subsector: 'subsector', factor: 'factor', risk: 'risk',
   quantity: 'quantity',
-  'purchase price': 'purchasePrice',
   'average purchase price': 'avgPurchasePrice',
   'peso ideale': 'pesoIdeale'
 };
@@ -757,7 +827,7 @@ function parseCSV(text) {
     fieldFor.forEach((field, i) => {
       if (!field) return;
       let v = (cells[i] || '').trim();
-      if (['risk', 'quantity', 'purchasePrice', 'avgPurchasePrice', 'pesoIdeale'].includes(field)) {
+      if (['risk', 'quantity', 'avgPurchasePrice', 'pesoIdeale'].includes(field)) {
         v = v.replace(/[^\d.,-]/g, '').replace(',', '.');
         v = v === '' ? 0 : Number(v);
       }
@@ -780,7 +850,7 @@ window.PFD = {
   detectCurrency, normalizePosition,
   computeRows, portfolioTotals, riskColor,
   saveLocal, loadLocal,
-  supabaseSave, supabaseLoad,
+  supabaseSave, supabaseLoad, getDeviceLinkToken, linkDevice,
   fetchYahooPrice, refreshAllPrices,
   saveSnapshot, redistributeAfterRemoval, redistributeForNewPosition,
   parseCSV, exportState
@@ -799,6 +869,7 @@ const {
   state, fmtEUR, fmtEUR2, fmtPct, fmtNum, clamp, debounce, uid,
   detectCurrency, normalizePosition, computeRows, portfolioTotals,
   riskColor, saveLocal, loadLocal, supabaseSave, supabaseLoad,
+  getDeviceLinkToken, linkDevice,
   refreshAllPrices, saveSnapshot, redistributeAfterRemoval,
   redistributeForNewPosition, parseCSV, exportState
 } = window.PFD;
@@ -1157,7 +1228,6 @@ function openPositionModal(id) {
   ff(f,'risk').value = pos?.risk ?? 6;
   ff(f,'currency').value = pos?.currency || 'USD';
   ff(f,'quantity').value = pos?.quantity ?? '';
-  ff(f,'purchasePrice').value = pos?.purchasePrice ?? '';
   ff(f,'avgPurchasePrice').value = pos?.avgPurchasePrice ?? '';
   ff(f,'pesoIdeale').value = pos?.pesoIdeale ?? '';
   $('#redistribute-row').style.display = pos ? 'none' : 'flex';
@@ -1181,7 +1251,7 @@ function submitPositionForm(e) {
     sector: ff(f,'sector').value.trim(), subsector: ff(f,'subsector').value.trim(),
     factor: ff(f,'factor').value.trim(), risk: ff(f,'risk').value,
     currency: ff(f,'currency').value, quantity: ff(f,'quantity').value,
-    purchasePrice: ff(f,'purchasePrice').value, avgPurchasePrice: ff(f,'avgPurchasePrice').value,
+    avgPurchasePrice: ff(f,'avgPurchasePrice').value,
     pesoIdeale: ff(f,'pesoIdeale').value
   };
 
@@ -1283,8 +1353,9 @@ function openSettingsModal() {
   ff(f,'allowFractional').checked = state.settings.allowFractional;
   ff(f,'supabaseUrl').value = state.settings.supabase.url;
   ff(f,'supabaseKey').value = state.settings.supabase.anonKey;
-  ff(f,'supabaseProfile').value = state.settings.supabase.profileKey;
   ff(f,'supabaseEnabled').checked = state.settings.supabase.enabled;
+  $('#supabase-token-display').value = '';
+  $('#supabase-link-input').value = '';
   $('#settings-modal').classList.add('open');
 }
 function closeSettingsModal() { $('#settings-modal').classList.remove('open'); }
@@ -1298,7 +1369,6 @@ function submitSettingsForm(e) {
   state.settings.supabase = {
     url: ff(f,'supabaseUrl').value.trim(),
     anonKey: ff(f,'supabaseKey').value.trim(),
-    profileKey: ff(f,'supabaseProfile').value.trim() || 'default',
     enabled: ff(f,'supabaseEnabled').checked
   };
   saveLocal();
@@ -1342,6 +1412,24 @@ function bindGlobalEvents() {
   $('#supabase-load-btn').addEventListener('click', async () => {
     try { const ok = await supabaseLoad(); toast(ok ? 'Caricato da Supabase' : 'Nessun dato trovato', ok ? 'good' : 'warn'); renderAll(); }
     catch (e) { toast('Errore Supabase: ' + e.message, 'bad'); }
+  });
+  $('#supabase-show-token-btn').addEventListener('click', async () => {
+    try {
+      const token = await getDeviceLinkToken();
+      const input = $('#supabase-token-display');
+      input.value = token;
+      input.type = 'text';
+      input.select();
+      try { await navigator.clipboard.writeText(token); toast('Token copiato negli appunti', 'good'); }
+      catch (e) { toast('Token generato — selezionalo e copialo manualmente', 'info'); }
+    } catch (e) { toast('Errore Supabase: ' + e.message, 'bad'); }
+  });
+  $('#supabase-link-btn').addEventListener('click', async () => {
+    try {
+      const token = $('#supabase-link-input').value;
+      await linkDevice(token);
+      toast('Dispositivo collegato — premi "Carica da cloud" per sincronizzare', 'good');
+    } catch (e) { toast('Errore collegamento: ' + e.message, 'bad'); }
   });
 
   const onFilterChange = () => {
