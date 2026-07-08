@@ -198,7 +198,6 @@ pre{background:var(--surface-2); padding:10px; border-radius:8px; font-size:11px
 
   <div class="header">
     <div class="header-title">
-      <span class="eyebrow">Footnotes · Portfolio Ops</span>
       <h1>Portfolio Dashboard</h1>
     </div>
     <div class="kpi-row">
@@ -314,16 +313,62 @@ pre{background:var(--surface-2); padding:10px; border-radius:8px; font-size:11px
       <div class="form-grid">
         <label>Ticker (simbolo Yahoo Finance)<input type="text" name="ticker" placeholder="es. AAPL, ATCO-A.ST" required></label>
         <label>Nome<input type="text" name="companyName" placeholder="Apple Inc."></label>
-        <label>Paese<input type="text" name="nation" placeholder="USA"></label>
+        <label>Paese
+          <select name="nation">
+            <option value="">—</option>
+            <option value="USA" title="USA">🇺🇸</option>
+            <option value="Italia" title="Italia">🇮🇹</option>
+            <option value="Germania" title="Germania">🇩🇪</option>
+            <option value="Francia" title="Francia">🇫🇷</option>
+            <option value="Paesi Bassi" title="Paesi Bassi">🇳🇱</option>
+            <option value="Belgio" title="Belgio">🇧🇪</option>
+            <option value="Spagna" title="Spagna">🇪🇸</option>
+            <option value="Finlandia" title="Finlandia">🇫🇮</option>
+            <option value="Svezia" title="Svezia">🇸🇪</option>
+            <option value="Regno Unito" title="Regno Unito">🇬🇧</option>
+            <option value="Norvegia" title="Norvegia">🇳🇴</option>
+            <option value="Danimarca" title="Danimarca">🇩🇰</option>
+            <option value="Svizzera" title="Svizzera">🇨🇭</option>
+            <option value="Canada" title="Canada">🇨🇦</option>
+            <option value="Hong Kong" title="Hong Kong">🇭🇰</option>
+            <option value="Giappone" title="Giappone">🇯🇵</option>
+          </select>
+        </label>
         <label>Valuta
           <select name="currency">
             <option>USD</option><option>EUR</option><option>SEK</option><option>GBP</option>
             <option>NOK</option><option>DKK</option><option>CHF</option><option>CAD</option><option>HKD</option><option>JPY</option>
           </select>
         </label>
-        <label>Settore<input type="text" name="sector"></label>
+        <label>Settore
+          <select name="sector">
+            <option value="">—</option>
+            <option>Technology</option>
+            <option>Health Care</option>
+            <option>Financials</option>
+            <option>Consumer Discretionary</option>
+            <option>Consumer Staples</option>
+            <option>Industrials</option>
+            <option>Energy</option>
+            <option>Materials</option>
+            <option>Utilities</option>
+            <option>Real Estate</option>
+            <option>Communication Services</option>
+          </select>
+        </label>
         <label>Sottosettore<input type="text" name="subsector"></label>
-        <label>Factor<input type="text" name="factor" placeholder="Quality / Value / Growth / Speculative / Blend"></label>
+        <label>Factor
+          <select name="factor">
+            <option value="">—</option>
+            <option>Quality</option>
+            <option>Value</option>
+            <option>Growth</option>
+            <option>Quality-Growth</option>
+            <option>Momentum</option>
+            <option>Speculative</option>
+            <option>Blend/Compounder</option>
+          </select>
+        </label>
         <label>Risk (3-9)<input type="number" name="risk" min="3" max="9" step="1"></label>
         <label>Quantità<input type="number" name="quantity" step="any" required></label>
         <label>Costo medio ponderato (unitario)<input type="number" name="avgPurchasePrice" step="any"></label>
