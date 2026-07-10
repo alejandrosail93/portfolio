@@ -147,6 +147,11 @@ td.muted{color:var(--text-muted);}
 .inline-input{width:64px; text-align:right; font-family:var(--font-mono); padding:3px 6px;}
 .row-actions{white-space:nowrap; text-align:right;}
 .empty-state{padding:40px !important; text-align:center; color:var(--text-dim);}
+.warning-banner{
+  background:var(--warn)15; border:1px solid var(--warn); color:var(--text);
+  padding:10px 14px; border-radius:8px; font-size:13px; display:flex; align-items:center; gap:8px;
+}
+.warning-banner b{font-family:var(--font-mono); color:var(--warn);}
 
 /* ---------- Rebalance ---------- */
 .rb-summary{display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px;}
@@ -336,6 +341,7 @@ pre{background:var(--surface-2); padding:10px; border-radius:8px; font-size:11px
 
   <!-- ===================== COMPOSIZIONE ===================== -->
   <div class="tab-panel" id="panel-composizione">
+    <div id="composizione-warning" style="display:none; margin-bottom:14px;"></div>
     <div class="comp-grid">
       <div class="comp-card"><h3>Per settore</h3><div class="chart-box"><canvas id="chart-sector"></canvas></div></div>
       <div class="comp-card"><h3>Per paese</h3><div class="chart-box"><canvas id="chart-nation"></canvas></div></div>
@@ -697,7 +703,8 @@ function portfolioTotals(rows) {
   const totalProfitPct = totalCost ? (totalProfit / totalCost) * 100 : null;
   const outOfTolerance = rows.filter(r => r.status === 'red' || r.status === 'yellow').length;
   const unknown = rows.filter(r => r.status === 'unknown').length;
-  return { totalValue, totalCost, totalProfit, totalProfitPct, outOfTolerance, unknown, n: rows.length };
+  const totalPesoIdeale = rows.reduce((s, r) => s + (r.pesoIdeale || 0), 0);
+  return { totalValue, totalCost, totalProfit, totalProfitPct, outOfTolerance, unknown, totalPesoIdeale, n: rows.length };
 }
 
 /* ---------- Gradiente rischio (segnatura visiva: barbell 3→9) ---------- */
@@ -1227,6 +1234,16 @@ function groupBy(rows, keyFn) {
 }
 
 function renderComposition(rows) {
+  const totals = portfolioTotals(rows);
+  const warn = $('#composizione-warning');
+  const delta = totals.totalPesoIdeale - 100;
+  if (Math.abs(delta) > 0.5) {
+    warn.style.display = 'flex';
+    warn.className = 'warning-banner';
+    warn.innerHTML = `⚠ Il totale dei pesi ideali di tutte le posizioni è <b>${fmtPct(totals.totalPesoIdeale)}</b>, non 100% — per questo le barre "Peso ideale" nei grafici sotto non sommano a 100. Controlla in tabella (tab Portfolio) le posizioni con peso ideale non aggiornato.`;
+  } else {
+    warn.style.display = 'none';
+  }
   buildGroupedChart('sector', groupBy(rows, r => r.sector), 'sector');
   buildGroupedChart('nation', groupBy(rows, r => r.nation), 'nation');
   buildGroupedChart('factor', groupBy(rows, r => r.factor), 'factor');
