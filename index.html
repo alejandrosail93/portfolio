@@ -210,7 +210,7 @@ pre{background:var(--surface-2); padding:10px; border-radius:8px; font-size:11px
   transition:.25s; z-index:200;
 }
 .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
-.toast.good{border-color:var(--good);} .toast.bad{border-color:var(--bad);} .toast.info{border-color:var(--accent-core);}
+.toast.good{border-color:var(--good);} .toast.bad{border-color:var(--bad);} .toast.info{border-color:var(--accent-core);} .toast.warn{border-color:var(--warn);}
 </style>
 </head>
 <body>
@@ -647,7 +647,7 @@ function normalizePosition(p) {
     price: p.price != null ? Number(p.price) : null,       // prezzo corrente, valuta locale
     quantity: Number(p.quantity) || 0,
     avgPurchasePrice: Number(p.avgPurchasePrice) || 0, // costo medio ponderato per unità
-    pesoIdeale: p.pesoIdeale != null ? Number(p.pesoIdeale) : 0, // % target, manuale
+    pesoIdeale: p.pesoIdeale != null ? Math.max(0, Number(p.pesoIdeale) || 0) : 0, // % target, manuale, mai negativo
     priceStale: !!p.priceStale,
     lastPriceUpdate: p.lastPriceUpdate || null
   };
@@ -922,8 +922,13 @@ function redistributeAfterRemoval(removedWeight, remainingPositions) {
 function redistributeForNewPosition(newWeight, existingPositions) {
   const totalOther = existingPositions.reduce((s, p) => s + p.pesoIdeale, 0);
   if (totalOther <= 0) return;
-  const scale = (totalOther - newWeight) / totalOther;
-  existingPositions.forEach(p => { p.pesoIdeale = p.pesoIdeale * scale; });
+  // Riduce ogni posizione in proporzione alla propria quota, mai sotto zero
+  // (un fattore di scala unico "(totale-nuovo)/totale" può diventare negativo
+  // se newWeight supera il totale esistente, corrompendo tutti i pesi: bug corretto qui).
+  existingPositions.forEach(p => {
+    const riduzione = (p.pesoIdeale / totalOther) * newWeight;
+    p.pesoIdeale = Math.max(0, p.pesoIdeale - riduzione);
+  });
 }
 
 /* ---------- CSV import ---------- */
@@ -1377,6 +1382,7 @@ function submitPositionForm(e) {
     pesoIdeale: ff(f,'pesoIdeale').value
   };
 
+  let redistributionCapped = false;
   if (state.ui.editingId) {
     const idx = state.positions.findIndex(p => p.id === state.ui.editingId);
     if (idx >= 0) state.positions[idx] = normalizePosition({ ...state.positions[idx], ...payload });
@@ -1384,6 +1390,8 @@ function submitPositionForm(e) {
     const newPos = normalizePosition(payload);
     const redistribute = $('#redistribute-check').checked;
     if (redistribute && newPos.pesoIdeale > 0) {
+      const totalOther = state.positions.reduce((s, p) => s + p.pesoIdeale, 0);
+      redistributionCapped = totalOther > 0 && newPos.pesoIdeale > totalOther;
       redistributeForNewPosition(newPos.pesoIdeale, state.positions);
     }
     state.positions.push(newPos);
@@ -1392,7 +1400,11 @@ function submitPositionForm(e) {
   saveLocal();
   closePositionModal();
   renderAll();
-  toast('Posizione salvata', 'good');
+  if (redistributionCapped) {
+    toast('Posizione salvata — peso ideale nuovo troppo alto rispetto al resto: alcune posizioni sono state azzerate, controlla la tabella', 'warn');
+  } else {
+    toast('Posizione salvata', 'good');
+  }
 }
 
 async function fetchSinglePrice(id) {
