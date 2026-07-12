@@ -139,6 +139,7 @@ td.muted{color:var(--text-muted);}
 .name{font-size:11px; color:var(--text-dim); max-width:160px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .good{color:var(--good) !important;} .bad{color:var(--bad) !important;}
 .risk-pill{font-family:var(--font-mono); font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px;}
+.watchlist-pill{font-size:10px; color:var(--accent-core); border:1px solid var(--accent-core); padding:1px 6px; border-radius:10px; margin-left:4px; white-space:nowrap;}
 .stale{color:var(--warn); font-size:11px;}
 .status-dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px;}
 .dot-ok{background:var(--good);} .dot-warn{background:var(--warn);} .dot-bad{background:var(--bad);} .dot-unknown{background:var(--text-dim);}
@@ -1131,7 +1132,7 @@ function renderPortfolioTable(rows) {
     tr.innerHTML = `
       <td class="risk-stripe"></td>
       <td class="col-ticker">
-        <div class="ticker">${r.ticker}</div>
+        <div class="ticker">${r.ticker}${r.quantity === 0 ? ' <span class="watchlist-pill" title="Non ancora acquistato">◇ da comprare</span>' : ''}</div>
         <div class="name">${r.name || ''}</div>
       </td>
       <td class="num" style="text-align:center" title="${r.nation || ''}">${window.PFD.flagFor(r.nation)}</td>
