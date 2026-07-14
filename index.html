@@ -298,6 +298,11 @@ pre{background:var(--surface-2); padding:10px; border-radius:8px; font-size:11px
         <option>Speculative</option>
         <option>Blend/Compounder</option>
       </select>
+      <select id="filter-status">
+        <option value="">Stato (tutti)</option>
+        <option value="owned">In portafoglio</option>
+        <option value="watchlist">◇ Da comprare</option>
+      </select>
     </div>
     <div class="card">
       <table>
@@ -574,7 +579,7 @@ let state = {
   ui: {
     tab: 'portfolio',
     sort: { col: 'scostamentoAbs', dir: 'desc' },
-    filters: { sector: '', nation: '', factor: '', search: '' },
+    filters: { sector: '', nation: '', factor: '', status: '', search: '' },
     lastUpdate: null,
     editingId: null
   }
@@ -686,6 +691,7 @@ function computeRows() {
       const abs = Math.abs(scostamento);
       if (abs > state.settings.toleranceRed) status = 'red';
       else if (abs > state.settings.toleranceYellow) status = 'yellow';
+      else if (r.quantity === 0 && r.pesoIdeale > 0) status = 'yellow'; // da comprare: sempre segnalato, a prescindere dalla soglia
     } else {
       status = 'unknown';
     }
@@ -1094,6 +1100,8 @@ function applyFilters(rows) {
     if (f.sector && r.sector !== f.sector) return false;
     if (f.nation && r.nation !== f.nation) return false;
     if (f.factor && r.factor !== f.factor) return false;
+    if (f.status === 'watchlist' && r.quantity !== 0) return false;
+    if (f.status === 'owned' && r.quantity === 0) return false;
     if (f.search) {
       const s = f.search.toLowerCase();
       if (!r.ticker.toLowerCase().includes(s) && !r.name.toLowerCase().includes(s)) return false;
@@ -1571,11 +1579,13 @@ function bindGlobalEvents() {
     state.ui.filters.sector = $('#filter-sector').value;
     state.ui.filters.nation = $('#filter-nation').value;
     state.ui.filters.factor = $('#filter-factor').value;
+    state.ui.filters.status = $('#filter-status').value;
     renderAll();
   };
   $('#filter-sector').addEventListener('change', onFilterChange);
   $('#filter-nation').addEventListener('change', onFilterChange);
   $('#filter-factor').addEventListener('change', onFilterChange);
+  $('#filter-status').addEventListener('change', onFilterChange);
   $('#filter-search').addEventListener('input', debounce(() => {
     state.ui.filters.search = $('#filter-search').value;
     renderAll();
