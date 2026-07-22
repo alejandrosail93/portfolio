@@ -232,6 +232,11 @@
     font-weight:700;padding:9px 10px;border-bottom:2px solid var(--line)}
   .snap-tbl th:first-child,.snap-tbl td:first-child{text-align:left}
   .snap-tbl td{padding:10px;border-bottom:1px solid var(--line-2);text-align:right;font-variant-numeric:tabular-nums}
+  /* cloud sync */
+  .codebox{background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:12px 13px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.5;white-space:pre-wrap;
+    word-break:break-word;color:var(--ink-soft);max-height:220px;overflow:auto}
+  #cloudStatus{white-space:nowrap}
   @media(max-width:900px){.g-2{grid-template-columns:1fr}.hstats{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:640px){
     .wrap{padding:0 14px}
@@ -272,13 +277,14 @@
         <button class="btn btn-ghost btn-sm" id="btnRefresh" title="Aggiorna prezzi e cambi da Yahoo"><span class="ri">↻</span> Aggiorna</button>
         <button class="btn btn-ghost btn-sm" id="btnTheme" title="Tema chiaro/scuro">🌙</button>
         <button class="btn btn-ghost btn-sm" id="btnFx">Valute</button>
+        <button class="btn btn-ghost btn-sm" id="btnSync" title="Sincronizza con il tuo progetto Supabase">☁ Cloud</button>
         <button class="btn btn-ghost btn-sm" id="btnSample">Esempio</button>
         <button class="btn btn-ghost btn-sm" id="btnImport">Importa</button>
         <button class="btn btn-ghost btn-sm" id="btnExport">Esporta</button>
         <button class="btn btn-gold" id="btnAdd">+ Posizione</button>
       </div>
     </div>
-    <div class="greet" id="greet">Bentornato. Ecco come sta andando il tuo capitale. <span id="upStatus" style="opacity:.85"></span></div>
+    <div class="greet" id="greet">Bentornato. Ecco come sta andando il tuo capitale. <span id="upStatus" style="opacity:.85"></span><span id="cloudStatus" style="opacity:.85;margin-left:8px"></span></div>
     <div class="hstats">
       <div class="hstat"><div class="l">Valore totale</div><div class="v" id="hValue">€0</div><div class="s" id="hCount">0 posizioni</div></div>
       <div class="hstat"><div class="l">Investito</div><div class="v" id="hCost">€0</div><div class="s">capitale versato</div></div>
@@ -484,7 +490,7 @@
   </div>
 </section>
 
-<footer class="wrap">100% offline · i tuoi dati restano su questo dispositivo · <b>Investor Toolkit</b></footer>
+<footer class="wrap" id="footerNote">100% offline · i tuoi dati restano su questo dispositivo · <b>Investor Toolkit</b></footer>
 
 <datalist id="secList">
   <option>Tecnologia</option><option>Finanza</option><option>Salute</option><option>Energia</option>
@@ -570,21 +576,51 @@
   <div class="mfoot"><button class="btn btn-line" data-close>Annulla</button><button class="btn btn-gold" id="doImport" style="display:none">Importa</button></div>
 </div></div>
 
+<!-- Cloud sync (Supabase) modal -->
+<div class="ov" id="ovSync"><div class="modal">
+  <h3><span>Sincronizzazione cloud (Supabase)</span><button class="x" data-close>&times;</button></h3>
+  <div class="mbody">
+    <div class="note">Facoltativo: collega un tuo progetto <b>Supabase</b> gratuito per salvare il portafoglio online e ritrovarlo su più dispositivi. Se non lo configuri, la dashboard resta 100% offline e usa solo questo dispositivo, come prima.</div>
+    <div class="field"><label>URL progetto Supabase</label><input id="syUrl" placeholder="https://xxxxxxxx.supabase.co"></div>
+    <div class="field"><label>Chiave anon / public</label><input id="syKey" placeholder="eyJhbGciOi..."></div>
+    <div class="field"><label>ID portafoglio <span class="nm2">(per separare più portafogli nello stesso progetto)</span></label><input id="syPid" placeholder="main" value="main"></div>
+    <div class="warnbox on" style="margin-top:0;margin-bottom:16px">⚠ Usa solo un progetto Supabase <b>tuo e privato</b>. Chiunque conosca URL e chiave può leggere e modificare questi dati: non condividerli e non riutilizzare lo stesso progetto per più persone.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn btn-gold btn-sm" id="syConnect">Salva e sincronizza</button>
+      <button class="btn btn-line btn-sm" id="syNow">Sincronizza ora</button>
+      <button class="btn btn-line btn-sm" id="syDisconnect">Disconnetti (solo locale)</button>
+    </div>
+    <div id="syStatusLine" class="nm2" style="margin-bottom:6px"></div>
+    <button type="button" class="lnkbtn" id="syToggleSql" style="padding:0">▸ Istruzioni e script SQL da eseguire su Supabase</button>
+    <div id="sySqlWrap" style="display:none;margin-top:12px">
+      <div class="note">1) Crea un account gratuito su <b>supabase.com</b> e apri un nuovo progetto.<br>
+        2) Vai su <b>SQL Editor</b> e incolla ed esegui lo script qui sotto.<br>
+        3) Vai su <b>Project Settings → API</b>: copia il <b>Project URL</b> e la chiave <b>anon public</b> nei campi qui sopra.</div>
+      <div class="codebox" id="sqlScript"></div>
+      <button type="button" class="btn btn-line btn-sm" id="syCopySql" style="margin-top:10px">Copia script SQL</button>
+    </div>
+  </div>
+  <div class="mfoot"><button class="btn btn-gold" data-close>Fatto</button></div>
+</div></div>
+
 <script>
 (function(){
   "use strict";
   var KEY="pf_dash_v1";
   var DEFAULT_FX={EUR:1,USD:0.92,GBP:1.17,CHF:1.04,SEK:0.088,NOK:0.086,DKK:0.134,JPY:0.0060,CAD:0.68,AUD:0.61,CNY:0.127};
   var BASE_COUNTRIES=["Italia","Stati Uniti","Europa","Eurozona","Germania","Regno Unito","Giappone","Cina","Mercati Emergenti","Asia-Pacifico","Nord America","Globale"];
-  var state={rows:[],view:"pos",sortK:"value",sortDir:-1,cur:"€",base:"EUR",targets:{},fx:{EUR:1},history:[],filters:{search:"",cls:"",sector:"",country:""},theme:"light",customCountries:[],lastUpdate:0};
+  var state={rows:[],view:"pos",sortK:"value",sortDir:-1,cur:"€",base:"EUR",targets:{},fx:{EUR:1},history:[],filters:{search:"",cls:"",sector:"",country:""},theme:"light",customCountries:[],lastUpdate:0,updatedAt:0};
   var PAL=["#d9a531","#295a86","#3f9e8f","#dd7a54","#6aa0d0","#eec25a","#4a9d8e","#c47f2e","#5aa469","#a2946f","#7fb0d6","#3d7ea6"];
   var $=function(s){return document.querySelector(s);};
   var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};
 
-  function load(){try{var s=JSON.parse(localStorage.getItem(KEY));if(s){state.rows=s.rows||[];state.targets=s.targets||{};
+  function packState(){return {rows:state.rows,targets:state.targets,fx:state.fx,history:state.history,theme:state.theme,cur:state.cur,customCountries:state.customCountries,lastUpdate:state.lastUpdate,updatedAt:state.updatedAt||0};}
+  function applyState(s){if(!s)return;state.rows=s.rows||[];state.targets=s.targets||{};
     if(s.fx)state.fx=s.fx;if(s.history)state.history=s.history;if(s.theme)state.theme=s.theme;if(s.cur)state.cur=s.cur;
-    if(s.customCountries)state.customCountries=s.customCountries;if(s.lastUpdate)state.lastUpdate=s.lastUpdate;}}catch(e){}}
-  function save(){try{localStorage.setItem(KEY,JSON.stringify({rows:state.rows,targets:state.targets,fx:state.fx,history:state.history,theme:state.theme,cur:state.cur,customCountries:state.customCountries,lastUpdate:state.lastUpdate}));}catch(e){}}
+    if(s.customCountries)state.customCountries=s.customCountries;if(s.lastUpdate)state.lastUpdate=s.lastUpdate;
+    state.updatedAt=s.updatedAt||Date.now();}
+  function load(){try{var s=JSON.parse(localStorage.getItem(KEY));if(s)applyState(s);}catch(e){}}
+  function save(){state.updatedAt=Date.now();try{localStorage.setItem(KEY,JSON.stringify(packState()));}catch(e){}queueCloudPush();}
 
   function num(v){if(typeof v==="number")return v;if(v==null)return 0;
     var s=String(v).trim().replace(/[^\d,.\-]/g,"");if(!s)return 0;
@@ -965,6 +1001,92 @@
       .catch(function(){row.priceStale=true;save();render();setStatus("· "+esc(row.ticker)+" non trovato su Yahoo (controlla il simbolo)");});}
   $("#btnRefresh").addEventListener("click",function(){refreshPrices(false);});
 
+  // ---------- CLOUD SYNC (Supabase, opzionale) ----------
+  var SYNC_KEY="pf_dash_v1_sync_cfg";
+  var sync={url:"",key:"",pid:"main"};
+  var SQL_SCRIPT=[
+    "create table if not exists portfolio_data (",
+    "  id text primary key,",
+    "  payload jsonb not null,",
+    "  updated_at timestamptz not null default now()",
+    ");",
+    "",
+    "alter table portfolio_data enable row level security;",
+    "",
+    "create policy \"consenti lettura/scrittura (progetto privato)\"",
+    "on portfolio_data for all",
+    "using (true) with check (true);"
+  ].join("\n");
+  function loadSyncCfg(){try{var s=JSON.parse(localStorage.getItem(SYNC_KEY));if(s){sync.url=s.url||"";sync.key=s.key||"";sync.pid=s.pid||"main";}}catch(e){}}
+  function saveSyncCfg(){try{localStorage.setItem(SYNC_KEY,JSON.stringify(sync));}catch(e){}}
+  function syncConfigured(){return !!(sync.url&&sync.key);}
+  function cleanUrl(u){return (u||"").trim().replace(/\/+$/,"");}
+  function supaHeaders(extra){var h={"apikey":sync.key,"Authorization":"Bearer "+sync.key,"Content-Type":"application/json"};
+    if(extra)for(var k in extra)h[k]=extra[k];return h;}
+  function setCloudStatus(t){var e=$("#cloudStatus");if(e)e.textContent=t;}
+  function setSyncStatus(t){var e=$("#syStatusLine");if(e)e.textContent=t;}
+  function updateFooter(){var f=$("#footerNote");if(!f)return;
+    f.innerHTML=syncConfigured()?"☁ Sincronizzato con il tuo progetto Supabase · i dati restano anche salvati in locale · <b>Investor Toolkit</b>":
+      "100% offline · i tuoi dati restano su questo dispositivo · <b>Investor Toolkit</b>";}
+  function pullFromCloud(){
+    if(!syncConfigured())return Promise.resolve(null);
+    var u=cleanUrl(sync.url)+"/rest/v1/portfolio_data?id=eq."+encodeURIComponent(sync.pid||"main")+"&select=payload";
+    return fetch(u,{headers:supaHeaders()}).then(function(r){if(!r.ok)throw new Error("http "+r.status);return r.json();})
+      .then(function(rows){return (rows&&rows[0]&&rows[0].payload)?rows[0].payload:null;});
+  }
+  function pushToCloud(){
+    if(!syncConfigured())return Promise.resolve();
+    var body=[{id:sync.pid||"main",payload:packState(),updated_at:new Date().toISOString()}];
+    return fetch(cleanUrl(sync.url)+"/rest/v1/portfolio_data",{method:"POST",
+        headers:supaHeaders({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(body)})
+      .then(function(r){if(!r.ok)throw new Error("http "+r.status);
+        setCloudStatus("· ☁ sincronizzato alle "+fmtTime(Date.now()));setSyncStatus("Sincronizzato alle "+fmtTime(Date.now())+".");})
+      .catch(function(){setCloudStatus("· ⚠ salvataggio cloud non riuscito (offline?)");
+        setSyncStatus("Impossibile salvare online: controlla connessione, URL e chiave.");});
+  }
+  var pushTimer=null;
+  function queueCloudPush(){if(!syncConfigured())return;clearTimeout(pushTimer);pushTimer=setTimeout(pushToCloud,1200);}
+  function syncFromCloudOnStartup(){
+    if(!syncConfigured())return;
+    setCloudStatus("· ☁ sincronizzo…");
+    pullFromCloud().then(function(remote){
+      if(remote&&(!state.updatedAt||(remote.updatedAt||0)>state.updatedAt)){
+        applyState(remote);applyTheme();buildCountryList();render();
+        setCloudStatus("· ☁ dati aggiornati dal cloud");
+      }else{
+        pushToCloud();
+      }
+    }).catch(function(){setCloudStatus("· ⚠ cloud non raggiungibile, uso i dati locali");});
+  }
+  function fillSyncForm(){$("#syUrl").value=sync.url;$("#syKey").value=sync.key;$("#syPid").value=sync.pid||"main";
+    $("#sqlScript").textContent=SQL_SCRIPT;
+    setSyncStatus(syncConfigured()?"Connesso a "+sync.url+" (portafoglio: "+(sync.pid||"main")+").":"Non connesso: la dashboard funziona solo in locale.");}
+  $("#btnSync").addEventListener("click",function(){fillSyncForm();$("#ovSync").classList.add("on");});
+  $("#syToggleSql").addEventListener("click",function(){var w=$("#sySqlWrap"),open=w.style.display!=="none";
+    w.style.display=open?"none":"block";this.textContent=(open?"▸":"▾")+" Istruzioni e script SQL da eseguire su Supabase";});
+  $("#syCopySql").addEventListener("click",function(){
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(SQL_SCRIPT).then(function(){setSyncStatus("Script copiato negli appunti.");});}
+    else{var ta=document.createElement("textarea");ta.value=SQL_SCRIPT;document.body.appendChild(ta);ta.select();
+      try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);setSyncStatus("Script copiato negli appunti.");}});
+  $("#syConnect").addEventListener("click",function(){
+    var u=$("#syUrl").value.trim(),k=$("#syKey").value.trim(),p=$("#syPid").value.trim()||"main";
+    if(!u||!k){setSyncStatus("Inserisci URL e chiave per connetterti.");return;}
+    sync.url=u;sync.key=k;sync.pid=p;saveSyncCfg();updateFooter();
+    setSyncStatus("Connessione in corso…");
+    pullFromCloud().then(function(remote){
+      if(remote&&(!state.updatedAt||(remote.updatedAt||0)>state.updatedAt)){
+        applyState(remote);applyTheme();buildCountryList();render();setSyncStatus("Connesso: dati caricati dal cloud.");
+      }else{
+        pushToCloud();setSyncStatus("Connesso: dati locali inviati al cloud.");
+      }
+    }).catch(function(){setSyncStatus("Connessione salvata, ma non riesco a raggiungere Supabase ora. Controlla URL, chiave e connessione.");});
+  });
+  $("#syNow").addEventListener("click",function(){if(!syncConfigured()){setSyncStatus("Configura prima URL e chiave.");return;}
+    setSyncStatus("Sincronizzo…");pushToCloud();});
+  $("#syDisconnect").addEventListener("click",function(){
+    if(!confirm("Disconnettere Supabase? La dashboard tornerà a funzionare solo in locale su questo dispositivo."))return;
+    sync={url:"",key:"",pid:"main"};saveSyncCfg();updateFooter();setCloudStatus("");fillSyncForm();setSyncStatus("Disconnesso: modalità solo locale.");});
+
   // ---------- master render ----------
   function render(){var total=enrich();populateFilters();renderOverview(total);renderRebalance(total);renderDividends();health(total);renderRisk(total);renderHistory();simulate();save();}
 
@@ -1073,8 +1195,9 @@
     $$("#allocSeg button").forEach(function(x){x.classList.remove("on");});b.classList.add("on");
     state.view=b.getAttribute("data-view");renderDonut(enrich());});});
 
-  load();applyTheme();buildCountryList();render();
+  loadSyncCfg();load();applyTheme();buildCountryList();render();updateFooter();
   if(state.rows.length){if(state.lastUpdate)setStatus("· ultimo aggiornamento alle "+fmtTime(state.lastUpdate));refreshPrices(true);}
+  syncFromCloudOnStartup();
 })();
 </script>
 </body>
