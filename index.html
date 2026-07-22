@@ -109,11 +109,17 @@
   .ic-plum{background:#d9e6f1;color:var(--plum-2)}
   /* donut + legend */
   .chart-row{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
-  .legend{flex:1;min-width:190px;display:flex;flex-direction:column;gap:9px}
+  .legend{flex:1;min-width:190px;display:flex;flex-direction:column;gap:9px;max-height:230px;overflow-y:auto;padding-right:4px}
   .leg{display:flex;align-items:center;gap:10px;font-size:13.5px}
   .dot{width:11px;height:11px;border-radius:4px;flex:none}
   .leg .nm{font-weight:650;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .leg .pc{color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600}
+  #perfBody{max-height:230px;overflow-y:auto;padding-right:4px}
+  .perf-row{margin-bottom:12px}
+  .perf-row:last-child{margin-bottom:0}
+  .perf-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;margin-bottom:5px}
+  .perf-top .tk{flex:1;min-width:0;word-break:break-word;font-size:13px}
+  .perf-top .amt{flex:none;white-space:nowrap;font-weight:700}
   .seg{display:flex;gap:5px;background:var(--soft);padding:3px;border-radius:10px}
   .seg button{border:0;background:transparent;font-family:inherit;font-size:12px;font-weight:650;
     color:var(--ink-soft);padding:5px 11px;border-radius:8px;cursor:pointer}
@@ -566,7 +572,7 @@
     <div class="note">Incolla il CSV del tuo broker (prima riga = intestazioni), poi abbina le colonne. Riconosce virgola, punto e virgola e tab.</div>
     <div class="field"><input type="file" id="fFile" accept=".csv,text/csv" style="padding:9px"></div>
     <div class="field"><label>…oppure incolla qui</label>
-      <textarea id="fPaste" placeholder="Ticker;Quantità;Prezzo carico;Prezzo attuale;Categoria&#10;AAPL;10;150;190;Azioni"></textarea></div>
+      <textarea id="fPaste" placeholder="Ticker;Nome;Categoria;Settore;Paese;Valuta;Quantità;Prezzo carico;Prezzo attuale;Yield %;Rischio&#10;AAPL;Apple Inc.;Azioni;Tecnologia;Stati Uniti;USD;25;150;212;0,5;7"></textarea></div>
     <button class="btn btn-line btn-sm" id="parseBtn">Leggi colonne</button>
     <div id="mapArea" style="display:none;margin-top:16px">
       <label style="font-size:12.5px;font-weight:650;color:var(--plum)">Abbina le colonne</label>
@@ -709,17 +715,16 @@
     $("#donut").innerHTML='<svg width="152" height="152" viewBox="0 0 152 152">'+segs+
       '<text x="76" y="71" text-anchor="middle" font-size="11" style="fill:var(--muted)">Totale</text>'+
       '<text x="76" y="90" text-anchor="middle" font-size="15" font-weight="800" style="fill:var(--ink)">'+fmt0(total)+'</text></svg>';
-    $("#legend").innerHTML=arr.slice(0,10).map(function(g,i){var p=total>0?g.value/total*100:0;
+    $("#legend").innerHTML=arr.map(function(g,i){var p=total>0?g.value/total*100:0;
       return '<div class="leg"><span class="dot" style="background:'+PAL[i%PAL.length]+'"></span><span class="nm">'+esc(g.name)+'</span><span class="pc">'+p.toLocaleString("it-IT",{maximumFractionDigits:1})+'%</span></div>';}).join("")||'<div class="nm2">Nessun dato</div>';
   }
   function renderPerf(){
     var arr=state.rows.slice().filter(function(r){return r.cost>0;}).sort(function(a,b){return b.pnl-a.pnl;});
     if(!arr.length){$("#perfBody").innerHTML='<div class="nm2" style="text-align:center;padding:22px 0">Aggiungi posizioni per vedere il contributo al risultato.</div>';return;}
     var maxAbs=Math.max.apply(null,arr.map(function(r){return Math.abs(r.pnl);}))||1;
-    $("#perfBody").innerHTML=arr.slice(0,8).map(function(r){var w=Math.abs(r.pnl)/maxAbs*100,up=r.pnl>=0;
-      return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:62px;font-weight:750;font-size:13px" class="tk">'+esc(r.ticker)+'</div>'+
-        '<div style="flex:1"><div class="bar" style="height:9px"><i style="width:'+w+'%;background:'+(up?"var(--green)":"var(--red)")+'"></i></div></div>'+
-        '<div style="width:96px;text-align:right;font-size:13px;font-weight:700" class="'+(up?"pos":"neg")+'">'+(up?"+":"")+fmt0(r.pnl)+'</div></div>';}).join("");
+    $("#perfBody").innerHTML=arr.map(function(r){var w=Math.abs(r.pnl)/maxAbs*100,up=r.pnl>=0;
+      return '<div class="perf-row"><div class="perf-top"><span class="tk">'+esc(r.ticker)+'</span><span class="amt '+(up?"pos":"neg")+'">'+(up?"+":"")+fmt0(r.pnl)+'</span></div>'+
+        '<div class="bar" style="height:9px"><i style="width:'+w+'%;background:'+(up?"var(--green)":"var(--red)")+'"></i></div></div>';}).join("");
   }
 
   // ---------- REBALANCE ----------
@@ -1021,7 +1026,10 @@
   function saveSyncCfg(){try{localStorage.setItem(SYNC_KEY,JSON.stringify(sync));}catch(e){}}
   function syncConfigured(){return !!(sync.url&&sync.key);}
   function cleanUrl(u){return (u||"").trim().replace(/\/+$/,"");}
-  function supaHeaders(extra){var h={"apikey":sync.key,"Authorization":"Bearer "+sync.key,"Content-Type":"application/json"};
+  function supaHeaders(extra){var h={"apikey":sync.key,"Content-Type":"application/json"};
+    // Le nuove chiavi Supabase (sb_publishable_/sb_secret_) non sono JWT: l'header Authorization
+    // va inviato solo con le vecchie chiavi anon/service_role (formato JWT, iniziano con "eyJ").
+    if(/^eyJ/.test(sync.key))h["Authorization"]="Bearer "+sync.key;
     if(extra)for(var k in extra)h[k]=extra[k];return h;}
   function setCloudStatus(t){var e=$("#cloudStatus");if(e)e.textContent=t;}
   function setSyncStatus(t){var e=$("#syStatusLine");if(e)e.textContent=t;}
