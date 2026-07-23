@@ -109,6 +109,12 @@
   .ic-plum{background:#d9e6f1;color:var(--plum-2)}
   /* donut + legend */
   .chart-row{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+  #donut{position:relative;width:152px;height:152px;flex:none}
+  .donut-seg{cursor:pointer;transition:opacity .12s}
+  .donut-seg:hover{opacity:.8}
+  .dtip{position:absolute;display:none;pointer-events:none;background:var(--card);border:1px solid var(--line);
+    border-radius:9px;padding:6px 11px;font-size:12px;font-weight:650;color:var(--ink);box-shadow:var(--shadow-sm);
+    white-space:nowrap;z-index:5;transform:translate(-50%,-125%)}
   .legend{flex:1;min-width:190px;display:flex;flex-direction:column;gap:9px;max-height:230px;overflow-y:auto;padding-right:4px}
   .leg{display:flex;align-items:center;gap:10px;font-size:13.5px}
   .dot{width:11px;height:11px;border-radius:4px;flex:none}
@@ -494,6 +500,13 @@
       <div class="note" style="margin-top:14px">Assegna a ogni titolo un punteggio di rischio da <b>3</b> (molto prudente) a <b>9</b> (molto aggressivo) nella sua scheda. Le barre mostrano quante posizioni cadono in ogni livello.</div>
     </div>
   </div>
+  <div class="card" style="margin-top:20px">
+    <div class="hd"><h2><span class="chip-ic ic-gold">◆</span> Distribuzione per Fattore</h2>
+      <span class="sub" id="factorTop"></span></div>
+    <div class="bd"><div class="barbell" id="factorBar"></div>
+      <div class="note" style="margin-top:14px">Assegna un <b>fattore</b> (Growth, Quality, Trend Following, Quality-Growth, Speculative, Value) a ogni titolo nella sua scheda per vedere come si distribuisce il portafoglio per stile di investimento.</div>
+    </div>
+  </div>
 </section>
 
 <footer class="wrap" id="footerNote">100% offline · i tuoi dati restano su questo dispositivo · <b>Investor Toolkit</b></footer>
@@ -532,7 +545,13 @@
         <option>NOK</option><option>DKK</option><option>JPY</option><option>CAD</option><option>AUD</option><option>CNY</option></select></div>
       <div class="field"><label>Rischio 3–9 (opz.)</label><input id="fRisk" type="number" min="3" max="9" step="1" placeholder="6"></div>
     </div>
-    <div class="field"><label>Yield dividendo % (opz.)</label><input id="fYield" type="number" step="any"></div>
+    <div class="frow">
+      <div class="field"><label>Yield dividendo % (opz.)</label><input id="fYield" type="number" step="any"></div>
+      <div class="field"><label>Fattore (opz.)</label><select id="fFactor">
+        <option value="Nessuno">Nessuno</option><option>Growth</option><option>Quality</option>
+        <option value="Quality-Growth">Quality-Growth</option><option value="Trend Following">Trend Following</option>
+        <option>Speculative</option><option>Value</option></select></div>
+    </div>
     <div class="note" style="margin-bottom:0">Il <b>prezzo attuale</b> e la <b>valuta</b> vengono scaricati automaticamente da Yahoo Finance. Usa il simbolo Yahoo corretto: es. <b>AAPL</b>, <b>ENI.MI</b>, <b>VWCE.DE</b>, <b>BTC-USD</b>.</div>
     <input type="hidden" id="fId">
   </div>
@@ -572,7 +591,7 @@
     <div class="note">Incolla il CSV del tuo broker (prima riga = intestazioni), poi abbina le colonne. Riconosce virgola, punto e virgola e tab.</div>
     <div class="field"><input type="file" id="fFile" accept=".csv,text/csv" style="padding:9px"></div>
     <div class="field"><label>…oppure incolla qui</label>
-      <textarea id="fPaste" placeholder="Ticker;Nome;Categoria;Settore;Paese;Valuta;Quantità;Prezzo carico;Prezzo attuale;Yield %;Rischio&#10;AAPL;Apple Inc.;Azioni;Tecnologia;Stati Uniti;USD;25;150;212;0,5;7"></textarea></div>
+      <textarea id="fPaste" placeholder="Ticker;Nome;Categoria;Settore;Paese;Valuta;Quantità;Prezzo carico;Prezzo attuale;Yield %;Rischio;Fattore&#10;AAPL;Apple Inc.;Azioni;Tecnologia;Stati Uniti;USD;25;150;212;0,5;7;Growth"></textarea></div>
     <button class="btn btn-line btn-sm" id="parseBtn">Leggi colonne</button>
     <div id="mapArea" style="display:none;margin-top:16px">
       <label style="font-size:12.5px;font-weight:650;color:var(--plum)">Abbina le colonne</label>
@@ -704,26 +723,43 @@
     sel.value=cur;}
   function populateFilters(){fillSel("fltCls","cls","Categoria: tutte");fillSel("fltSector","sector","Settore: tutti");fillSel("fltCountry","country","Paese: tutti");
     var s=$("#fltSearch");if(s&&document.activeElement!==s&&s.value!==state.filters.search)s.value=state.filters.search;}
-  function groups(){var by=state.view==="pos"?"ticker":state.view,m={};
-    state.rows.forEach(function(r){var key=((r[by]||"")+"").trim()||"—";m[key]=(m[key]||0)+r.value;});
+  function groups(){var view=state.view;
+    if(view==="pos"){
+      // vista Titolo: una fetta per ogni posizione, mai raggruppate per nome/ticker uguale
+      return state.rows.map(function(r){return{name:(r.name||"").trim()||(r.ticker||"").trim()||"—",value:r.value};})
+        .sort(function(a,b){return b.value-a.value;});
+    }
+    var m={};
+    state.rows.forEach(function(r){var key=((r[view]||"")+"").trim()||"—";m[key]=(m[key]||0)+r.value;});
     return Object.keys(m).map(function(k){return{name:k,value:m[k]};}).sort(function(a,b){return b.value-a.value;});}
   function renderDonut(total){
     var arr=groups(),cx=76,cy=76,mid=53,sw=26,circ=2*Math.PI*mid,off=0,segs="";
     if(total<=0||!arr.length){segs='<circle cx="76" cy="76" r="53" fill="none" stroke="rgba(140,140,150,.2)" stroke-width="26"/>';}
-    else arr.forEach(function(g,i){var len=g.value/total*circ,col=PAL[i%PAL.length];
-      segs+='<circle cx="76" cy="76" r="53" fill="none" stroke="'+col+'" stroke-width="26" stroke-dasharray="'+len+' '+(circ-len)+'" stroke-dashoffset="'+(-off)+'" transform="rotate(-90 76 76)"/>';off+=len;});
-    $("#donut").innerHTML='<svg width="152" height="152" viewBox="0 0 152 152">'+segs+
+    else arr.forEach(function(g,i){var len=g.value/total*circ,col=PAL[i%PAL.length],p=g.value/total*100;
+      segs+='<circle class="donut-seg" data-name="'+esc(g.name)+'" data-pct="'+p.toLocaleString("it-IT",{maximumFractionDigits:1})+'" cx="76" cy="76" r="53" fill="none" stroke="'+col+'" stroke-width="26" stroke-dasharray="'+len+' '+(circ-len)+'" stroke-dashoffset="'+(-off)+'" transform="rotate(-90 76 76)"/>';off+=len;});
+    $("#donut").innerHTML='<div class="dtip" id="donutTip"></div><svg width="152" height="152" viewBox="0 0 152 152">'+segs+
       '<text x="76" y="71" text-anchor="middle" font-size="11" style="fill:var(--muted)">Totale</text>'+
       '<text x="76" y="90" text-anchor="middle" font-size="15" font-weight="800" style="fill:var(--ink)">'+fmt0(total)+'</text></svg>';
     $("#legend").innerHTML=arr.map(function(g,i){var p=total>0?g.value/total*100:0;
       return '<div class="leg"><span class="dot" style="background:'+PAL[i%PAL.length]+'"></span><span class="nm">'+esc(g.name)+'</span><span class="pc">'+p.toLocaleString("it-IT",{maximumFractionDigits:1})+'%</span></div>';}).join("")||'<div class="nm2">Nessun dato</div>';
+    wireDonutTip();
+  }
+  function wireDonutTip(){
+    var wrap=$("#donut"),tip=$("#donutTip");if(!wrap||!tip)return;
+    $$(".donut-seg").forEach(function(seg){
+      seg.addEventListener("mouseenter",function(){tip.style.display="block";
+        tip.textContent=seg.getAttribute("data-name")+" · "+seg.getAttribute("data-pct")+"%";});
+      seg.addEventListener("mousemove",function(e){var r=wrap.getBoundingClientRect();
+        tip.style.left=(e.clientX-r.left)+"px";tip.style.top=(e.clientY-r.top)+"px";});
+      seg.addEventListener("mouseleave",function(){tip.style.display="none";});
+    });
   }
   function renderPerf(){
     var arr=state.rows.slice().filter(function(r){return r.cost>0;}).sort(function(a,b){return b.pnl-a.pnl;});
     if(!arr.length){$("#perfBody").innerHTML='<div class="nm2" style="text-align:center;padding:22px 0">Aggiungi posizioni per vedere il contributo al risultato.</div>';return;}
     var maxAbs=Math.max.apply(null,arr.map(function(r){return Math.abs(r.pnl);}))||1;
     $("#perfBody").innerHTML=arr.map(function(r){var w=Math.abs(r.pnl)/maxAbs*100,up=r.pnl>=0;
-      return '<div class="perf-row"><div class="perf-top"><span class="tk">'+esc(r.ticker)+'</span><span class="amt '+(up?"pos":"neg")+'">'+(up?"+":"")+fmt0(r.pnl)+'</span></div>'+
+      return '<div class="perf-row"><div class="perf-top"><span class="tk">'+esc(r.name||r.ticker)+'</span><span class="amt '+(up?"pos":"neg")+'">'+(up?"+":"")+fmt0(r.pnl)+'</span></div>'+
         '<div class="bar" style="height:9px"><i style="width:'+w+'%;background:'+(up?"var(--green)":"var(--red)")+'"></i></div></div>';}).join("");
   }
 
@@ -955,6 +991,22 @@
     var ws=0,vs=0;state.rows.forEach(function(r){var v=Math.max(3,Math.min(9,Math.round(num(r.risk))||6));ws+=r.value*v;vs+=r.value;});
     $("#riskAvg").textContent=vs>0?(ws/vs).toFixed(1)+" / 9":"–";}
 
+  // ---------- FACTOR DISTRIBUTION ----------
+  var FACTOR_ORDER=["Value","Quality","Quality-Growth","Growth","Trend Following","Speculative","Nessuno"];
+  var FACTOR_COLORS={"Value":"#2e9e6b","Quality":"#5aa469","Quality-Growth":"#c9a227","Growth":"#d9a531","Trend Following":"#dd7a54","Speculative":"#d1584f","Nessuno":"#b7ac9a"};
+  function normFactor(f){f=(f||"").trim();return FACTOR_ORDER.indexOf(f)>-1?f:"Nessuno";}
+  function renderFactor(total){
+    var counts={},vals={};FACTOR_ORDER.forEach(function(f){counts[f]=0;vals[f]=0;});
+    state.rows.forEach(function(r){var f=normFactor(r.factor);counts[f]++;vals[f]+=r.value;});
+    var maxC=Math.max.apply(null,[1].concat(FACTOR_ORDER.map(function(f){return counts[f];})));
+    var bb=FACTOR_ORDER.map(function(f){var h=counts[f]/maxC*100;
+      return '<div class="col"><div class="cnt">'+(counts[f]||"")+'</div><div class="bb" style="height:'+(counts[f]?Math.max(6,h):2)+'%;background:'+(counts[f]?FACTOR_COLORS[f]:"var(--soft)")+'"></div><div class="lv">'+esc(f)+'</div></div>';}).join("");
+    $("#factorBar").innerHTML=bb;
+    var best=null,bv=0;FACTOR_ORDER.forEach(function(f){if(f!=="Nessuno"&&vals[f]>bv){bv=vals[f];best=f;}});
+    var lbl=$("#factorTop");
+    if(lbl)lbl.textContent=(best&&total>0)?(best+" · "+(vals[best]/total*100).toLocaleString("it-IT",{maximumFractionDigits:0})+"% del capitale"):"nessuna posizione classificata";
+  }
+
   // ---------- THEME ----------
   function applyTheme(){document.documentElement.setAttribute("data-theme",state.theme==="dark"?"dark":"light");
     var b=$("#btnTheme");if(b)b.textContent=state.theme==="dark"?"☀":"🌙";}
@@ -1096,7 +1148,7 @@
     sync={url:"",key:"",pid:"main"};saveSyncCfg();updateFooter();setCloudStatus("");fillSyncForm();setSyncStatus("Disconnesso: modalità solo locale.");});
 
   // ---------- master render ----------
-  function render(){var total=enrich();populateFilters();renderOverview(total);renderRebalance(total);renderDividends();health(total);renderRisk(total);renderHistory();simulate();save();}
+  function render(){var total=enrich();populateFilters();renderOverview(total);renderRebalance(total);renderDividends();health(total);renderRisk(total);renderFactor(total);renderHistory();simulate();save();}
 
   // ---------- nav ----------
   $$(".pill").forEach(function(p){p.addEventListener("click",function(){
@@ -1117,6 +1169,7 @@
     $("#fSector").value=r?(r.sector||""):"";$("#fCountry").value=r?(r.country||""):"";
     $("#fQty").value=r?r.qty:"";$("#fAvg").value=r?r.avg:"";
     $("#fCur").value=r?(r.currency||"EUR"):"EUR";$("#fYield").value=r?(r.yield||""):"";$("#fRisk").value=r?(r.risk||""):"";
+    $("#fFactor").value=r?normFactor(r.factor):"Nessuno";
     $("#ovEdit").classList.add("on");$("#fTicker").focus();}
   $("#btnAdd").addEventListener("click",function(){openEdit(null);});
   $("#savePos").addEventListener("click",function(){var t=$("#fTicker").value.trim();if(!t){$("#fTicker").focus();return;}
@@ -1124,7 +1177,8 @@
     var id=$("#fId").value,prev=id?state.rows.filter(function(r){return r.id===id;})[0]:null;
     var obj={id:id||uid(),ticker:t,name:$("#fName").value.trim(),cls:$("#fCls").value,
       sector:$("#fSector").value.trim(),country:$("#fCountry").value.trim(),currency:$("#fCur").value,
-      qty:num($("#fQty").value),avg:num($("#fAvg").value),price:prev?num(prev.price):0,yield:num($("#fYield").value),risk:rk,priceStale:prev?!!prev.priceStale:true};
+      qty:num($("#fQty").value),avg:num($("#fAvg").value),price:prev?num(prev.price):0,yield:num($("#fYield").value),risk:rk,
+      factor:$("#fFactor").value||"Nessuno",priceStale:prev?!!prev.priceStale:true};
     if(obj.country&&allCountries().indexOf(obj.country)<0){state.customCountries.push(obj.country);buildCountryList();}
     if(id)state.rows=state.rows.map(function(r){return r.id===id?obj:r;});else state.rows.push(obj);
     state.targets={};closeAll();render();refreshOne(obj);});
@@ -1141,7 +1195,7 @@
         else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur="";}else if(c==='\r'){}else cur+=c;}}
     if(cur.length||row.length){row.push(cur);rows.push(row);}
     return rows.filter(function(r){return r.some(function(c){return c.trim()!=="";});});}
-  var FIELDS=[["ticker","Ticker / Simbolo *"],["name","Nome"],["cls","Categoria"],["sector","Settore"],["country","Paese"],["currency","Valuta"],["qty","Quantità *"],["avg","Prezzo di carico *"],["price","Prezzo attuale *"],["yield","Yield %"],["risk","Risk 3-9"]];
+  var FIELDS=[["ticker","Ticker / Simbolo *"],["name","Nome"],["cls","Categoria"],["sector","Settore"],["country","Paese"],["currency","Valuta"],["qty","Quantità *"],["avg","Prezzo di carico *"],["price","Prezzo attuale *"],["yield","Yield %"],["risk","Risk 3-9"],["factor","Fattore"]];
   function guess(h,f){h=h.map(function(x){return x.toLowerCase();});
     var p={ticker:["ticker","simbolo","symbol","isin","strumento","titolo"],name:["nome","name","descrizione"],
       cls:["categoria","classe","asset","tipo","class"],sector:["settore","sector","comparto"],
@@ -1150,7 +1204,8 @@
       avg:["carico","medio","cost","acquisto","pmc","avg","costo"],
       price:["attuale","corrente","current","last","prezzo","mercato","market","quotazione"],
       currency:["valuta","currency","divisa","ccy"],risk:["rischio","risk"],
-      yield:["yield","dividend","rendiment","cedola","div%"]}[f]||[];
+      yield:["yield","dividend","rendiment","cedola","div%"],
+      factor:["fattore","factor","stile","style"]}[f]||[];
     for(var j=0;j<h.length;j++)for(var k=0;k<p.length;k++)if(h[j].indexOf(p[k])>-1)return j;return -1;}
   $("#parseBtn").addEventListener("click",function(){var txt=$("#fPaste").value.trim();if(!txt){alert("Incolla del testo CSV o carica un file.");return;}
     var rows=parseCSV(txt);if(rows.length<2){alert("Servono un'intestazione e almeno una riga.");return;}
@@ -1167,29 +1222,30 @@
     parsed.data.forEach(function(r){var t=(r[map.ticker]||"").trim();if(!t)return;
       var rk=map.risk>-1?Math.round(num(r[map.risk])):0;rk=rk?Math.max(3,Math.min(9,rk)):6;
       var cc=map.currency>-1?((r[map.currency]||"").trim().toUpperCase()||"EUR"):"EUR";
+      var fac=map.factor>-1?normFactor((r[map.factor]||"").trim()):"Nessuno";
       state.rows.push({id:uid(),ticker:t,name:map.name>-1?(r[map.name]||"").trim():"",cls:map.cls>-1?((r[map.cls]||"").trim()||"Altro"):"Altro",
         sector:map.sector>-1?(r[map.sector]||"").trim():"",country:map.country>-1?(r[map.country]||"").trim():"",currency:cc,
-        qty:map.qty>-1?num(r[map.qty]):0,avg:map.avg>-1?num(r[map.avg]):0,price:map.price>-1?num(r[map.price]):0,yield:map.yield>-1?num(r[map.yield]):0,risk:rk});added++;});
+        qty:map.qty>-1?num(r[map.qty]):0,avg:map.avg>-1?num(r[map.avg]):0,price:map.price>-1?num(r[map.price]):0,yield:map.yield>-1?num(r[map.yield]):0,risk:rk,factor:fac});added++;});
     state.targets={};closeAll();render();if(added){refreshPrices(true);setTimeout(function(){alert(added+" posizioni importate. Aggiorno i prezzi da Yahoo…");},50);}});
 
   // ---------- export ----------
   $("#btnExport").addEventListener("click",function(){if(!state.rows.length){alert("Nessuna posizione da esportare.");return;}
-    var head=["Ticker","Nome","Categoria","Settore","Paese","Valuta","Quantità","Prezzo carico","Prezzo attuale","Yield %","Risk","Valore EUR","G/P EUR","G/P %"],lines=[head.join(",")];
-    state.rows.forEach(function(r){lines.push([r.ticker,'"'+(r.name||"")+'"',r.cls,'"'+(r.sector||"")+'"','"'+(r.country||"")+'"',r.currency||"EUR",num(r.qty),num(r.avg),num(r.price),num(r.yield),Math.round(num(r.risk))||6,r.value.toFixed(2),r.pnl.toFixed(2),r.pnlpc.toFixed(2)].join(","));});
+    var head=["Ticker","Nome","Categoria","Settore","Paese","Valuta","Quantità","Prezzo carico","Prezzo attuale","Yield %","Risk","Fattore","Valore EUR","G/P EUR","G/P %"],lines=[head.join(",")];
+    state.rows.forEach(function(r){lines.push([r.ticker,'"'+(r.name||"")+'"',r.cls,'"'+(r.sector||"")+'"','"'+(r.country||"")+'"',r.currency||"EUR",num(r.qty),num(r.avg),num(r.price),num(r.yield),Math.round(num(r.risk))||6,normFactor(r.factor),r.value.toFixed(2),r.pnl.toFixed(2),r.pnlpc.toFixed(2)].join(","));});
     var blob=new Blob(["﻿"+lines.join("\n")],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");
     a.href=URL.createObjectURL(blob);a.download="portfolio_"+new Date().toISOString().slice(0,10)+".csv";a.click();});
 
   // ---------- sample ----------
   $("#btnSample").addEventListener("click",function(){if(state.rows.length&&!confirm("Sostituire i dati attuali con quelli di esempio?"))return;
     state.rows=[
-      {id:uid(),ticker:"AAPL",name:"Apple Inc.",cls:"Azioni",sector:"Tecnologia",country:"Stati Uniti",currency:"USD",qty:25,avg:150,price:212,yield:0.5,risk:7},
-      {id:uid(),ticker:"MSFT",name:"Microsoft",cls:"Azioni",sector:"Tecnologia",country:"Stati Uniti",currency:"USD",qty:12,avg:280,price:448,yield:0.7,risk:6},
-      {id:uid(),ticker:"VWCE.DE",name:"Vanguard FTSE All-World",cls:"ETF",sector:"Diversificato",country:"Globale",currency:"EUR",qty:60,avg:98,price:126,yield:1.8,risk:5},
-      {id:uid(),ticker:"SWDA.MI",name:"iShares Core MSCI World",cls:"ETF",sector:"Diversificato",country:"Globale",currency:"EUR",qty:40,avg:72,price:98,yield:1.5,risk:5},
-      {id:uid(),ticker:"BTC-USD",name:"Bitcoin",cls:"Crypto",sector:"Crypto",country:"Globale",currency:"USD",qty:0.15,avg:42000,price:61000,yield:0,risk:9},
-      {id:uid(),ticker:"ENI.MI",name:"Eni SpA",cls:"Azioni",sector:"Energia",country:"Italia",currency:"EUR",qty:200,avg:14.2,price:13.1,yield:6.5,risk:6},
-      {id:uid(),ticker:"BTP30",name:"BTP 2030",cls:"Obbligazioni",sector:"Governativo",country:"Italia",currency:"EUR",qty:100,avg:97,price:101.5,yield:4,risk:3},
-      {id:uid(),ticker:"GOLD",name:"Gold ETC",cls:"Materie prime",sector:"Materie prime",country:"Globale",currency:"EUR",qty:30,avg:52,price:64,yield:0,risk:4}];
+      {id:uid(),ticker:"AAPL",name:"Apple Inc.",cls:"Azioni",sector:"Tecnologia",country:"Stati Uniti",currency:"USD",qty:25,avg:150,price:212,yield:0.5,risk:7,factor:"Growth"},
+      {id:uid(),ticker:"MSFT",name:"Microsoft",cls:"Azioni",sector:"Tecnologia",country:"Stati Uniti",currency:"USD",qty:12,avg:280,price:448,yield:0.7,risk:6,factor:"Quality"},
+      {id:uid(),ticker:"VWCE.DE",name:"Vanguard FTSE All-World",cls:"ETF",sector:"Diversificato",country:"Globale",currency:"EUR",qty:60,avg:98,price:126,yield:1.8,risk:5,factor:"Nessuno"},
+      {id:uid(),ticker:"SWDA.MI",name:"iShares Core MSCI World",cls:"ETF",sector:"Diversificato",country:"Globale",currency:"EUR",qty:40,avg:72,price:98,yield:1.5,risk:5,factor:"Nessuno"},
+      {id:uid(),ticker:"BTC-USD",name:"Bitcoin",cls:"Crypto",sector:"Crypto",country:"Globale",currency:"USD",qty:0.15,avg:42000,price:61000,yield:0,risk:9,factor:"Speculative"},
+      {id:uid(),ticker:"ENI.MI",name:"Eni SpA",cls:"Azioni",sector:"Energia",country:"Italia",currency:"EUR",qty:200,avg:14.2,price:13.1,yield:6.5,risk:6,factor:"Value"},
+      {id:uid(),ticker:"BTP30",name:"BTP 2030",cls:"Obbligazioni",sector:"Governativo",country:"Italia",currency:"EUR",qty:100,avg:97,price:101.5,yield:4,risk:3,factor:"Nessuno"},
+      {id:uid(),ticker:"GOLD",name:"Gold ETC",cls:"Materie prime",sector:"Materie prime",country:"Globale",currency:"EUR",qty:30,avg:52,price:64,yield:0,risk:4,factor:"Nessuno"}];
     state.targets={};render();refreshPrices(true);});
 
   // ---------- modals ----------
