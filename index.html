@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Il mio portafoglio</title>
+<title>Portafoglio Dashboard</title>
 <style>
   :root{
     --cream:#f7efe3; --cream-2:#fdf8f0; --card:#fffdf9;
@@ -115,12 +115,16 @@
   .dtip{position:absolute;display:none;pointer-events:none;background:var(--card);border:1px solid var(--line);
     border-radius:9px;padding:6px 11px;font-size:12px;font-weight:650;color:var(--ink);box-shadow:var(--shadow-sm);
     white-space:nowrap;z-index:5;transform:translate(-50%,-125%)}
-  .legend{flex:1;min-width:190px;display:flex;flex-direction:column;gap:9px;max-height:230px;overflow-y:auto;padding-right:4px}
+  .legend{flex:1;min-width:190px;display:flex;flex-direction:column;gap:9px;max-height:230px;overflow-y:auto;
+    padding-right:13px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
   .leg{display:flex;align-items:center;gap:10px;font-size:13.5px}
   .dot{width:11px;height:11px;border-radius:4px;flex:none}
   .leg .nm{font-weight:650;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .leg .pc{color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600}
-  #perfBody{max-height:230px;overflow-y:auto;padding-right:4px}
+  .leg .pc{color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600;flex:none}
+  #perfBody{max-height:230px;overflow-y:auto;padding-right:13px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  .legend::-webkit-scrollbar,#perfBody::-webkit-scrollbar{width:6px}
+  .legend::-webkit-scrollbar-track,#perfBody::-webkit-scrollbar-track{background:transparent}
+  .legend::-webkit-scrollbar-thumb,#perfBody::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
   .perf-row{margin-bottom:12px}
   .perf-row:last-child{margin-bottom:0}
   .perf-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;margin-bottom:5px}
@@ -283,20 +287,19 @@
     <div class="hero-top">
       <div class="brand">
         <div class="mark">◆</div>
-        <div><div class="t1">Investor Toolkit</div><div class="t2">Il mio portafoglio</div></div>
+        <div><div class="t1">Investor Toolkit</div><div class="t2">Portafoglio Dashboard</div></div>
       </div>
       <div class="hero-actions">
         <button class="btn btn-ghost btn-sm" id="btnRefresh" title="Aggiorna prezzi e cambi da Yahoo"><span class="ri">↻</span> Aggiorna</button>
         <button class="btn btn-ghost btn-sm" id="btnTheme" title="Tema chiaro/scuro">🌙</button>
         <button class="btn btn-ghost btn-sm" id="btnFx">Valute</button>
         <button class="btn btn-ghost btn-sm" id="btnSync" title="Sincronizza con il tuo progetto Supabase">☁ Cloud</button>
-        <button class="btn btn-ghost btn-sm" id="btnSample">Esempio</button>
         <button class="btn btn-ghost btn-sm" id="btnImport">Importa</button>
         <button class="btn btn-ghost btn-sm" id="btnExport">Esporta</button>
         <button class="btn btn-gold" id="btnAdd">+ Posizione</button>
       </div>
     </div>
-    <div class="greet" id="greet">Bentornato. Ecco come sta andando il tuo capitale. <span id="upStatus" style="opacity:.85"></span><span id="cloudStatus" style="opacity:.85;margin-left:8px"></span></div>
+    <div class="greet" id="greet"><span id="upStatus" style="opacity:.85"></span><span id="cloudStatus" style="opacity:.85;margin-left:8px"></span></div>
     <div class="hstats">
       <div class="hstat"><div class="l">Valore totale</div><div class="v" id="hValue">€0</div><div class="s" id="hCount">0 posizioni</div></div>
       <div class="hstat"><div class="l">Investito</div><div class="v" id="hCost">€0</div><div class="s">capitale versato</div></div>
@@ -356,7 +359,7 @@
     </div>
     <div class="empty" id="empty">
       <div class="big">Il tuo portafoglio è vuoto</div>
-      Aggiungi una posizione, importa un CSV dal broker, o carica i <b>dati di esempio</b>.
+      Aggiungi una posizione oppure importa un CSV dal tuo broker.
     </div>
   </div>
 </section>
@@ -1036,7 +1039,7 @@
     .then(function(d){var res=d&&d.chart&&d.chart.result&&d.chart.result[0],meta=res&&res.meta;
       if(!meta||meta.regularMarketPrice==null)throw 0;return {price:meta.regularMarketPrice,currency:meta.currency};});}
   function fmtTime(ts){var d=new Date(ts);return d.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});}
-  function setStatus(t,spin){var e=$("#upStatus");if(e)e.textContent=t;var b=$("#btnRefresh");if(b)b.classList.toggle("spin",!!spin);}
+  function setStatus(t,spin){var e=$("#upStatus");if(e)e.textContent=(t||"").replace(/^·\s*/,"");var b=$("#btnRefresh");if(b)b.classList.toggle("spin",!!spin);}
   function refreshFx(){var codes=[];state.rows.forEach(function(r){var c=r.currency||state.base;if(c!==state.base&&codes.indexOf(c)<0)codes.push(c);});
     if(!codes.length)return Promise.resolve();
     return Promise.all(codes.map(function(c){return yahooChart(c+state.base+"=X").then(function(res){if(res.price)state.fx[c]=res.price;}).catch(function(){});}));}
@@ -1083,7 +1086,7 @@
     // va inviato solo con le vecchie chiavi anon/service_role (formato JWT, iniziano con "eyJ").
     if(/^eyJ/.test(sync.key))h["Authorization"]="Bearer "+sync.key;
     if(extra)for(var k in extra)h[k]=extra[k];return h;}
-  function setCloudStatus(t){var e=$("#cloudStatus");if(e)e.textContent=t;}
+  function setCloudStatus(t){var e=$("#cloudStatus");if(e)e.textContent=(t||"").replace(/^·\s*/,"");}
   function setSyncStatus(t){var e=$("#syStatusLine");if(e)e.textContent=t;}
   function updateFooter(){var f=$("#footerNote");if(!f)return;
     f.innerHTML=syncConfigured()?"☁ Sincronizzato con il tuo progetto Supabase · i dati restano anche salvati in locale · <b>Investor Toolkit</b>":
@@ -1234,19 +1237,6 @@
     state.rows.forEach(function(r){lines.push([r.ticker,'"'+(r.name||"")+'"',r.cls,'"'+(r.sector||"")+'"','"'+(r.country||"")+'"',r.currency||"EUR",num(r.qty),num(r.avg),num(r.price),num(r.yield),Math.round(num(r.risk))||6,normFactor(r.factor),r.value.toFixed(2),r.pnl.toFixed(2),r.pnlpc.toFixed(2)].join(","));});
     var blob=new Blob(["﻿"+lines.join("\n")],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");
     a.href=URL.createObjectURL(blob);a.download="portfolio_"+new Date().toISOString().slice(0,10)+".csv";a.click();});
-
-  // ---------- sample ----------
-  $("#btnSample").addEventListener("click",function(){if(state.rows.length&&!confirm("Sostituire i dati attuali con quelli di esempio?"))return;
-    state.rows=[
-      {id:uid(),ticker:"AAPL",name:"Apple Inc.",cls:"Azioni",sector:"Tecnologia",country:"Stati Uniti",currency:"USD",qty:25,avg:150,price:212,yield:0.5,risk:7,factor:"Growth"},
-      {id:uid(),ticker:"MSFT",name:"Microsoft",cls:"Azioni",sector:"Tecnologia",country:"Stati Uniti",currency:"USD",qty:12,avg:280,price:448,yield:0.7,risk:6,factor:"Quality"},
-      {id:uid(),ticker:"VWCE.DE",name:"Vanguard FTSE All-World",cls:"ETF",sector:"Diversificato",country:"Globale",currency:"EUR",qty:60,avg:98,price:126,yield:1.8,risk:5,factor:"Nessuno"},
-      {id:uid(),ticker:"SWDA.MI",name:"iShares Core MSCI World",cls:"ETF",sector:"Diversificato",country:"Globale",currency:"EUR",qty:40,avg:72,price:98,yield:1.5,risk:5,factor:"Nessuno"},
-      {id:uid(),ticker:"BTC-USD",name:"Bitcoin",cls:"Crypto",sector:"Crypto",country:"Globale",currency:"USD",qty:0.15,avg:42000,price:61000,yield:0,risk:9,factor:"Speculative"},
-      {id:uid(),ticker:"ENI.MI",name:"Eni SpA",cls:"Azioni",sector:"Energia",country:"Italia",currency:"EUR",qty:200,avg:14.2,price:13.1,yield:6.5,risk:6,factor:"Value"},
-      {id:uid(),ticker:"BTP30",name:"BTP 2030",cls:"Obbligazioni",sector:"Governativo",country:"Italia",currency:"EUR",qty:100,avg:97,price:101.5,yield:4,risk:3,factor:"Nessuno"},
-      {id:uid(),ticker:"GOLD",name:"Gold ETC",cls:"Materie prime",sector:"Materie prime",country:"Globale",currency:"EUR",qty:30,avg:52,price:64,yield:0,risk:4,factor:"Nessuno"}];
-    state.targets={};render();refreshPrices(true);});
 
   // ---------- modals ----------
   function closeAll(){$$(".ov").forEach(function(o){o.classList.remove("on");});}
