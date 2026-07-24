@@ -679,8 +679,18 @@
     if(s.fx)state.fx=s.fx;if(s.history)state.history=s.history;if(s.theme)state.theme=s.theme;if(s.cur)state.cur=s.cur;
     if(s.customCountries)state.customCountries=s.customCountries;if(s.lastUpdate)state.lastUpdate=s.lastUpdate;
     state.updatedAt=s.updatedAt||Date.now();}
-  function load(){try{var s=JSON.parse(localStorage.getItem(KEY));if(s)applyState(s);}catch(e){}}
-  function save(){state.updatedAt=Date.now();try{localStorage.setItem(KEY,JSON.stringify(packState()));}catch(e){}queueCloudPush();}
+  // Firma del contenuto (esclude updatedAt) per capire se qualcosa è VERAMENTE cambiato:
+  // senza questo controllo, ogni semplice render() (anche al primo caricamento, senza modifiche)
+  // avrebbe "invecchiato" il timestamp locale, facendo sembrare un dispositivo appena aperto
+  // sempre più aggiornato del cloud e causando la sovrascrittura dei dati reali in sincronizzazione.
+  var lastPersistedSig=null;
+  function contentSig(){var p=packState();
+    return JSON.stringify({rows:p.rows,targets:p.targets,fx:p.fx,history:p.history,theme:p.theme,cur:p.cur,customCountries:p.customCountries,lastUpdate:p.lastUpdate});}
+  function load(){try{var s=JSON.parse(localStorage.getItem(KEY));if(s)applyState(s);}catch(e){}lastPersistedSig=contentSig();}
+  function save(){var sig=contentSig(),changed=sig!==lastPersistedSig;
+    if(changed){state.updatedAt=Date.now();lastPersistedSig=sig;}
+    try{localStorage.setItem(KEY,JSON.stringify(packState()));}catch(e){}
+    if(changed)queueCloudPush();}
 
   function num(v){if(typeof v==="number")return v;if(v==null)return 0;
     var s=String(v).trim().replace(/[^\d,.\-]/g,"");if(!s)return 0;
@@ -1250,7 +1260,7 @@
     setCloudStatus("· ☁ sincronizzo…");
     pullFromCloud().then(function(remote){
       if(remote&&(!state.updatedAt||(remote.updatedAt||0)>state.updatedAt)){
-        applyState(remote);applyTheme();buildCountryList();render();
+        applyState(remote);lastPersistedSig=contentSig();applyTheme();buildCountryList();render();
         setCloudStatus("· ☁ dati aggiornati dal cloud");
       }else{
         pushToCloud();
@@ -1274,7 +1284,7 @@
     setSyncStatus("Connessione in corso…");
     pullFromCloud().then(function(remote){
       if(remote&&(!state.updatedAt||(remote.updatedAt||0)>state.updatedAt)){
-        applyState(remote);applyTheme();buildCountryList();render();setSyncStatus("Connesso: dati caricati dal cloud.");
+        applyState(remote);lastPersistedSig=contentSig();applyTheme();buildCountryList();render();setSyncStatus("Connesso: dati caricati dal cloud.");
       }else{
         pushToCloud();setSyncStatus("Connesso: dati locali inviati al cloud.");
       }
