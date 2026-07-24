@@ -248,6 +248,13 @@
     font-weight:700;padding:9px 10px;border-bottom:2px solid var(--line)}
   .snap-tbl th:first-child,.snap-tbl td:first-child{text-align:left}
   .snap-tbl td{padding:10px;border-bottom:1px solid var(--line-2);text-align:right;font-variant-numeric:tabular-nums}
+  /* benchmark comparison */
+  .bleg{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:650;padding:6px 12px;
+    border-radius:20px;border:1px solid var(--line);background:var(--card);cursor:pointer;user-select:none;transition:.15s}
+  .bleg .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .bleg .pct{font-variant-numeric:tabular-nums;color:var(--muted);font-weight:700}
+  .bleg.off{opacity:.4}
+  .bleg.off .pct{color:var(--muted)}
   /* cloud sync */
   .codebox{background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:12px 13px;
     font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.5;white-space:pre-wrap;
@@ -464,7 +471,17 @@
       <button class="btn btn-gold btn-sm" id="btnSnap">＋ Salva snapshot</button></div>
     <div class="bd">
       <div id="histChart"></div>
-      <div class="note" style="margin-top:14px">Salva uno <b>snapshot</b> ogni volta che aggiorni i prezzi (es. una volta al mese): la dashboard costruisce il grafico dell'andamento. Uno snapshot al giorno; salvarne un altro lo stesso giorno aggiorna quello esistente.</div>
+      <div class="note" style="margin-top:14px">Salva uno <b>snapshot</b> ogni volta che aggiorni i prezzi (es. una volta al mese): la dashboard costruisce il grafico dell'andamento. Puoi anche aggiungere snapshot di date passate per ricostruire lo storico. Uno snapshot al giorno; salvarne un altro nello stesso giorno aggiorna quello esistente.</div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:20px">
+    <div class="hd"><h2><span class="chip-ic ic-terra">↗</span> Rendimento a confronto</h2>
+      <button class="btn btn-line btn-sm" id="btnBenchRefresh">↻ Scarica storico indici</button></div>
+    <div class="bd">
+      <div id="benchLegend" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
+      <div id="benchChart"></div>
+      <div class="nm2" id="benchStatus" style="margin-top:8px"></div>
+      <div class="note" style="margin-top:14px">Confronta il rendimento % del tuo portafoglio (calcolato sugli snapshot salvati) con alcuni indici di riferimento, a partire dalla data del tuo primo snapshot. I rendimenti degli indici sono nella loro valuta originale (no effetto cambio) e includono i dividendi reinvestiti. Servono almeno 2 snapshot e lo storico indici scaricato (richiede una connessione, poi resta disponibile offline). Clicca un'etichetta per mostrarla/nasconderla.</div>
     </div>
   </div>
   <div class="card" style="margin-top:20px">
@@ -602,6 +619,21 @@
     </div>
   </div>
   <div class="mfoot"><button class="btn btn-line" data-close>Annulla</button><button class="btn btn-gold" id="doImport" style="display:none">Importa</button></div>
+</div></div>
+
+<!-- Snapshot add/edit modal -->
+<div class="ov" id="ovSnap"><div class="modal" style="max-width:440px">
+  <h3><span id="snapTitle">Aggiungi snapshot</span><button class="x" data-close>&times;</button></h3>
+  <div class="mbody">
+    <div class="field"><label>Data</label><input id="snapDate" type="date"></div>
+    <div class="frow">
+      <div class="field"><label>Valore totale</label><input id="snapValue" type="number" step="any"></div>
+      <div class="field"><label>Capitale investito</label><input id="snapCost" type="number" step="any"></div>
+    </div>
+    <div class="note" style="margin-bottom:0">Usa questa finestra anche per inserire snapshot di <b>date passate</b>: così puoi ricostruire lo storico del portafoglio anche da prima di aver iniziato a usare la dashboard.</div>
+    <input type="hidden" id="snapOrigDate">
+  </div>
+  <div class="mfoot"><button class="btn btn-line" data-close>Annulla</button><button class="btn btn-gold" id="saveSnap">Salva</button></div>
 </div></div>
 
 <!-- Cloud sync (Supabase) modal -->
@@ -951,11 +983,24 @@
 
   // ---------- HISTORY ----------
   function fmtDate(iso){var p=iso.split("-");return p[2]+"/"+p[1]+"/"+p[0];}
-  function snapshot(){var total=enrich(),cost=state.rows.reduce(function(a,r){return a+r.cost;},0);
-    if(!state.rows.length){alert("Aggiungi almeno una posizione prima di salvare uno snapshot.");return;}
-    var today=new Date().toISOString().slice(0,10),last=state.history[state.history.length-1];
-    if(last&&last.t===today){last.value=total;last.cost=cost;}else state.history.push({t:today,value:total,cost:cost});
-    save();renderHistory();}
+  function openSnapModal(dateKey){
+    var s=dateKey?state.history.filter(function(x){return x.t===dateKey;})[0]:null;
+    $("#snapTitle").textContent=s?"Modifica snapshot":"Aggiungi snapshot";
+    $("#snapOrigDate").value=s?s.t:"";
+    $("#snapDate").value=s?s.t:new Date().toISOString().slice(0,10);
+    if(s){$("#snapValue").value=s.value;$("#snapCost").value=s.cost;}
+    else{var total=enrich(),cost=state.rows.reduce(function(a,r){return a+r.cost;},0);
+      $("#snapValue").value=Math.round(total*100)/100;$("#snapCost").value=Math.round(cost*100)/100;}
+    $("#ovSnap").classList.add("on");$("#snapDate").focus();}
+  $("#btnSnap").addEventListener("click",function(){openSnapModal(null);});
+  $("#saveSnap").addEventListener("click",function(){
+    var d=$("#snapDate").value;if(!d){$("#snapDate").focus();return;}
+    var v=num($("#snapValue").value),c=num($("#snapCost").value),orig=$("#snapOrigDate").value;
+    if(orig&&orig!==d)state.history=state.history.filter(function(x){return x.t!==orig;});
+    var existing=state.history.filter(function(x){return x.t===d;})[0];
+    if(existing){existing.value=v;existing.cost=c;}else state.history.push({t:d,value:v,cost:c});
+    state.history.sort(function(a,b){return a.t<b.t?-1:a.t>b.t?1:0;});
+    closeAll();save();renderHistory();});
   function renderHistory(){var h=state.history;
     $("#histCount").textContent=h.length?h.length+" snapshot":"";
     $("#histEmpty").style.display=h.length?"none":"block";
@@ -964,7 +1009,8 @@
       return '<tr><td>'+fmtDate(s.t)+'</td><td>'+fmt0(s.value)+'</td><td>'+fmt0(s.cost)+'</td>'+
         '<td class="'+(pnl>=0?"pos":"neg")+'">'+(pnl>=0?"+":"")+fmt0(pnl)+'</td>'+
         '<td class="'+(chg==null?"":chg>=0?"pos":"neg")+'">'+(chg==null?"–":(chg>=0?"+":"")+fmt0(chg))+'</td>'+
-        '<td><button class="rowbtn" data-snapdel="'+s.t+'">🗑</button></td></tr>';}).join("");}
+        '<td><button class="rowbtn" data-snapedit="'+s.t+'">✎</button><button class="rowbtn" data-snapdel="'+s.t+'">🗑</button></td></tr>';}).join("");
+    renderBenchmarkChart();}
   function drawHistChart(h){
     if(!h.length){$("#histChart").innerHTML='<div class="nm2" style="text-align:center;padding:34px 0">Nessuno snapshot: il grafico apparirà dopo il primo salvataggio.</div>';return;}
     var W=760,H=200,pad=10,padB=22,n=h.length,vals=h.map(function(s){return s.value;}),costs=h.map(function(s){return s.cost;});
@@ -979,8 +1025,54 @@
       '<path d="'+cline+'" fill="none" stroke="#9aa1ad" stroke-width="1.4" stroke-dasharray="4 4" opacity=".7"/>'+
       '<path d="'+line+'" fill="none" stroke="#d9a531" stroke-width="2.4"/>'+dots+'</svg>'+
       '<div style="display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:6px"><span><span style="display:inline-block;width:14px;height:3px;background:#d9a531;vertical-align:middle"></span> valore</span><span><span style="display:inline-block;width:14px;border-top:2px dashed #9aa1ad;vertical-align:middle"></span> investito</span></div>';}
-  $("#btnSnap").addEventListener("click",snapshot);
-  $("#histBody").addEventListener("click",function(e){var d=e.target.getAttribute("data-snapdel");
+
+  // ---------- BENCHMARK COMPARISON CHART ----------
+  function renderBenchmarkChart(){
+    var wrap=$("#benchChart"),legendWrap=$("#benchLegend");if(!wrap||!legendWrap)return;
+    var h=state.history;
+    if(!h.length){wrap.innerHTML='<div class="nm2" style="text-align:center;padding:34px 0">Aggiungi almeno uno snapshot per vedere il confronto.</div>';
+      legendWrap.innerHTML="";return;}
+    var base=h[0];
+    var series=[{key:"__port",label:"Portafoglio",color:"#c9a227",isPort:true,
+      data:h.map(function(s){return{t:s.t,ret:base.value>0?(s.value/base.value-1)*100:0};})}];
+    BENCH_LIST.forEach(function(b){var bd=bench.data[b.key];if(!bd||!bd.length)return;
+      var baseP=benchValueAt(bd,base.t);if(!baseP)return;
+      series.push({key:b.key,label:b.label,color:b.color,
+        data:h.map(function(s){var p=benchValueAt(bd,s.t);return{t:s.t,ret:p!=null?(p/baseP-1)*100:null};})});});
+    legendWrap.innerHTML=series.map(function(s){var last=s.data[s.data.length-1],txt=last&&last.ret!=null?pc(last.ret):"–",hidden=!!benchHidden[s.key];
+      return '<div class="bleg'+(hidden?" off":"")+'" data-bkey="'+esc(s.key)+'"><span class="dot" style="background:'+s.color+'"></span>'+esc(s.label)+' <span class="pct">'+txt+'</span></div>';}).join("");
+    $$('#benchLegend .bleg').forEach(function(el){el.addEventListener("click",function(){
+      benchHidden[el.getAttribute("data-bkey")]=!benchHidden[el.getAttribute("data-bkey")];renderBenchmarkChart();});});
+    if(!bench.updatedAt&&!benchRefreshing){var st=$("#benchStatus");if(st&&!st.textContent)st.textContent="· nessuno storico indici scaricato — premi \"Scarica storico indici\" (serve una connessione, una tantum)";}
+    var visible=series.filter(function(s){return !benchHidden[s.key];});
+    if(!visible.length){wrap.innerHTML='<div class="nm2" style="text-align:center;padding:34px 0">Nessuna serie selezionata: clicca un\'etichetta per mostrarla.</div>';return;}
+    drawBenchSvg(visible,h.length);
+  }
+  function drawBenchSvg(seriesList,n){
+    var W=760,H=220,pad=10,padB=10,allVals=[];
+    seriesList.forEach(function(s){s.data.forEach(function(p){if(p.ret!=null)allVals.push(p.ret);});});
+    if(!allVals.length){$("#benchChart").innerHTML='<div class="nm2" style="text-align:center;padding:34px 0">Dati insufficienti per il grafico.</div>';return;}
+    var max=Math.max.apply(null,allVals.concat([0])),min=Math.min.apply(null,allVals.concat([0]));
+    var range=(max-min)||1,padV=range*0.12;max+=padV;min-=padV;if(max<=min)max=min+1;
+    var x=function(i){return pad+(W-2*pad)*(n<=1?0.5:i/(n-1));},y=function(v){return H-padB-(H-pad-padB)*((v-min)/(max-min));};
+    var zeroY=y(0);
+    var svg='<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="display:block">'+
+      '<line x1="'+pad+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pad)+'" y2="'+zeroY.toFixed(1)+'" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3"/>';
+    seriesList.forEach(function(s){
+      if(n<=1){s.data.forEach(function(p,i){if(p.ret==null)return;
+        svg+='<circle cx="'+x(i).toFixed(1)+'" cy="'+y(p.ret).toFixed(1)+'" r="4" fill="'+s.color+'"/>';});return;}
+      var line="",started=false;
+      s.data.forEach(function(p,i){if(p.ret==null)return;
+        line+=(!started?"M":"L")+x(i).toFixed(1)+" "+y(p.ret).toFixed(1);started=true;});
+      if(!line)return;
+      svg+='<path d="'+line+'" fill="none" stroke="'+s.color+'" stroke-width="'+(s.isPort?3:2)+'"'+(s.isPort?"":' opacity=".85"')+'/>';
+    });
+    svg+='</svg>';
+    $("#benchChart").innerHTML=svg;
+  }
+
+  $("#histBody").addEventListener("click",function(e){var d=e.target.getAttribute("data-snapdel"),ed=e.target.getAttribute("data-snapedit");
+    if(ed)openSnapModal(ed);
     if(d&&confirm("Eliminare questo snapshot?")){state.history=state.history.filter(function(s){return s.t!==d;});save();renderHistory();}});
 
   // ---------- RISK DISTRIBUTION ----------
@@ -1039,6 +1131,50 @@
     .then(function(d){var res=d&&d.chart&&d.chart.result&&d.chart.result[0],meta=res&&res.meta;
       if(!meta||meta.regularMarketPrice==null)throw 0;return {price:meta.regularMarketPrice,currency:meta.currency};});}
   function fmtTime(ts){var d=new Date(ts);return d.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});}
+
+  // ---------- BENCHMARK HISTORY (indici a confronto) ----------
+  var BENCH_LIST=[
+    {key:"SPY",label:"S&P 500",color:"#295a86"},
+    {key:"URTH",label:"MSCI World",color:"#d9a531"},
+    {key:"FEZ",label:"EuroStoxx 50",color:"#3f9e8f"},
+    {key:"BNDW",label:"Obbligazioni Globali",color:"#9a8d7f"},
+    {key:"GLD",label:"Oro",color:"#dd7a54"}
+  ];
+  var BENCH_KEY="pf_dash_v1_bench";
+  var bench={data:{},updatedAt:0};
+  var benchHidden={};
+  function loadBenchCache(){try{var s=JSON.parse(localStorage.getItem(BENCH_KEY));if(s){bench.data=s.data||{};bench.updatedAt=s.updatedAt||0;}}catch(e){}}
+  function saveBenchCache(){try{localStorage.setItem(BENCH_KEY,JSON.stringify(bench));}catch(e){}}
+  function yahooHistory(sym){return fetchJSON("https://query1.finance.yahoo.com/v8/finance/chart/"+encodeURIComponent(sym)+"?interval=1mo&range=15y")
+    .then(function(d){var res=d&&d.chart&&d.chart.result&&d.chart.result[0];
+      if(!res||!res.timestamp)throw 0;
+      var ts=res.timestamp,ind=res.indicators||{};
+      var adj=(ind.adjclose&&ind.adjclose[0]&&ind.adjclose[0].adjclose)||(ind.quote&&ind.quote[0]&&ind.quote[0].close);
+      if(!adj)throw 0;
+      var out=[];
+      for(var i=0;i<ts.length;i++){if(adj[i]!=null)out.push({t:new Date(ts[i]*1000).toISOString().slice(0,10),p:adj[i]});}
+      if(!out.length)throw 0;
+      return out;});}
+  function setBenchStatus(t,spin){var e=$("#benchStatus");if(e)e.textContent=t;var b=$("#btnBenchRefresh");if(b)b.classList.toggle("spin",!!spin);}
+  var benchRefreshing=false;
+  function refreshBenchmarks(){
+    if(benchRefreshing)return;benchRefreshing=true;
+    setBenchStatus("· scarico storico indici…",true);
+    var jobs=BENCH_LIST.map(function(b){return yahooHistory(b.key).then(function(series){bench.data[b.key]=series;}).catch(function(){});});
+    return Promise.all(jobs).then(function(){
+      benchRefreshing=false;bench.updatedAt=Date.now();saveBenchCache();renderBenchmarkChart();
+      var ok=BENCH_LIST.filter(function(b){return bench.data[b.key]&&bench.data[b.key].length;}).length;
+      setBenchStatus(ok?("· storico aggiornato: "+ok+"/"+BENCH_LIST.length+" indici, "+fmtTime(bench.updatedAt)):"· impossibile scaricare gli indici (offline?)");
+    });
+  }
+  $("#btnBenchRefresh").addEventListener("click",refreshBenchmarks);
+  function benchValueAt(series,dateStr){
+    if(!series||!series.length)return null;
+    var best=null;
+    for(var i=0;i<series.length;i++){if(series[i].t<=dateStr)best=series[i];else break;}
+    if(!best)best=series[0];
+    return best.p;
+  }
   function setStatus(t,spin){var e=$("#upStatus");if(e)e.textContent=(t||"").replace(/^·\s*/,"");var b=$("#btnRefresh");if(b)b.classList.toggle("spin",!!spin);}
   function refreshFx(){var codes=[];state.rows.forEach(function(r){var c=r.currency||state.base;if(c!==state.base&&codes.indexOf(c)<0)codes.push(c);});
     if(!codes.length)return Promise.resolve();
@@ -1249,7 +1385,7 @@
     $$("#allocSeg button").forEach(function(x){x.classList.remove("on");});b.classList.add("on");
     state.view=b.getAttribute("data-view");renderDonut(enrich());});});
 
-  loadSyncCfg();load();applyTheme();buildCountryList();render();updateFooter();
+  loadSyncCfg();loadBenchCache();load();applyTheme();buildCountryList();render();updateFooter();
   if(state.rows.length){if(state.lastUpdate)setStatus("· ultimo aggiornamento alle "+fmtTime(state.lastUpdate));refreshPrices(true);}
   syncFromCloudOnStartup();
 })();
