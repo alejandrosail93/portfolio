@@ -706,6 +706,7 @@
   function pc(n){return (n>=0?"+":"")+n.toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:2})+"%";}
   function qn(n){return n.toLocaleString("it-IT",{maximumFractionDigits:4});}
   function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+  function csvField(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"';}
   function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
   function fxRate(cur){if(!cur||cur===state.base)return 1;var r=state.fx[cur];return r!=null?r:(DEFAULT_FX[cur]!=null?DEFAULT_FX[cur]:1);}
   function ensureFx(){state.rows.forEach(function(r){var c=r.currency||state.base;if(state.fx[c]==null)state.fx[c]=DEFAULT_FX[c]!=null?DEFAULT_FX[c]:1;});state.fx[state.base]=1;}
@@ -1121,6 +1122,8 @@
 
   // ---------- COUNTRIES (custom + datalist) ----------
   function allCountries(){return BASE_COUNTRIES.concat(state.customCountries||[]);}
+  function findCountryCanonical(v){var low=v.toLowerCase(),all=allCountries();
+    for(var i=0;i<all.length;i++){if(all[i].toLowerCase()===low)return all[i];}return null;}
   function buildCountryList(){var dl=$("#ctrList");if(dl)dl.innerHTML=allCountries().map(function(c){return '<option>'+esc(c)+'</option>';}).join("");}
   function renderCountryMgr(){var cc=state.customCountries||[];
     $("#countryList").innerHTML=cc.length?cc.map(function(c){return '<div class="chiprow"><span>'+esc(c)+'</span><button class="rowbtn" data-delcountry="'+esc(c)+'">🗑</button></div>';}).join("")
@@ -1326,11 +1329,12 @@
   $("#savePos").addEventListener("click",function(){var t=$("#fTicker").value.trim();if(!t){$("#fTicker").focus();return;}
     var rk=Math.round(num($("#fRisk").value));rk=rk?Math.max(3,Math.min(9,rk)):6;
     var id=$("#fId").value,prev=id?state.rows.filter(function(r){return r.id===id;})[0]:null;
+    var typedCountry=$("#fCountry").value.trim(),canonCountry=typedCountry?findCountryCanonical(typedCountry):null;
     var obj={id:id||uid(),ticker:t,name:$("#fName").value.trim(),cls:$("#fCls").value,
-      sector:$("#fSector").value.trim(),country:$("#fCountry").value.trim(),currency:$("#fCur").value,
+      sector:$("#fSector").value.trim(),country:canonCountry||typedCountry,currency:$("#fCur").value,
       qty:num($("#fQty").value),avg:num($("#fAvg").value),price:prev?num(prev.price):0,yield:num($("#fYield").value),risk:rk,
       factor:$("#fFactor").value||"Nessuno",priceStale:prev?!!prev.priceStale:true};
-    if(obj.country&&allCountries().indexOf(obj.country)<0){state.customCountries.push(obj.country);buildCountryList();}
+    if(obj.country&&!canonCountry){state.customCountries.push(obj.country);buildCountryList();}
     if(id)state.rows=state.rows.map(function(r){return r.id===id?obj:r;});else state.rows.push(obj);
     state.targets={};closeAll();render();refreshOne(obj);});
 
@@ -1382,7 +1386,7 @@
   // ---------- export ----------
   $("#btnExport").addEventListener("click",function(){if(!state.rows.length){alert("Nessuna posizione da esportare.");return;}
     var head=["Ticker","Nome","Categoria","Settore","Paese","Valuta","Quantità","Prezzo carico","Prezzo attuale","Yield %","Risk","Fattore","Valore EUR","G/P EUR","G/P %"],lines=[head.join(",")];
-    state.rows.forEach(function(r){lines.push([r.ticker,'"'+(r.name||"")+'"',r.cls,'"'+(r.sector||"")+'"','"'+(r.country||"")+'"',r.currency||"EUR",num(r.qty),num(r.avg),num(r.price),num(r.yield),Math.round(num(r.risk))||6,normFactor(r.factor),r.value.toFixed(2),r.pnl.toFixed(2),r.pnlpc.toFixed(2)].join(","));});
+    state.rows.forEach(function(r){lines.push([r.ticker,r.name||"",r.cls,r.sector||"",r.country||"",r.currency||"EUR",num(r.qty),num(r.avg),num(r.price),num(r.yield),Math.round(num(r.risk))||6,normFactor(r.factor),r.value.toFixed(2),r.pnl.toFixed(2),r.pnlpc.toFixed(2)].map(csvField).join(","));});
     var blob=new Blob(["﻿"+lines.join("\n")],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");
     a.href=URL.createObjectURL(blob);a.download="portfolio_"+new Date().toISOString().slice(0,10)+".csv";a.click();});
 
