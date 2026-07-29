@@ -86,7 +86,7 @@
   .hstat .l{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:#bcd0e6;font-weight:600}
   .hstat .v{font-size:22px;font-weight:750;margin-top:4px;letter-spacing:-.3px;overflow-wrap:break-word}
   .hstat .s{font-size:12.5px;margin-top:2px;color:#bcd0e6}
-  .hstat.masked .v,.hstat.masked .s{filter:blur(6px)}
+  .hstat.masked .v,.hstat.masked .s{filter:blur(14px)}
   .up{color:#7ee0ab!important}.down{color:#ff9e96!important}
   /* NAV pills */
   nav.pills{position:sticky;top:0;z-index:20;background:rgba(247,239,227,.9);backdrop-filter:blur(8px);
@@ -774,7 +774,7 @@
         '<td class="'+cls+'"><b>'+(r.pnl>=0?"+":"")+fmt(r.pnl)+'</b><div class="bar"><i style="width:'+w+'%;background:'+(r.pnl>=0?"var(--green)":"var(--red)")+'"></i></div></td>'+
         '<td class="'+cls+'">'+pc(r.pnlpc)+'</td>'+
         '<td class="hide-sm"><span class="riskpill" style="background:'+riskColor(rk)+'">'+rk+'</span></td>'+
-        '<td><span class="pillbadge '+ACTION_CLASS[normAction(r.action)]+'">'+esc(normAction(r.action))+'</span></td>'+
+        '<td><span class="pillbadge '+ACTION_CLASS[normAction(r.action)]+'" title="'+esc(normAction(r.action))+'">'+ACTION_SYMBOL[normAction(r.action)]+'</span></td>'+
         '<td>'+qn(num(r.actionQty))+'</td>'+
         '<td><button class="rowbtn" data-edit="'+r.id+'">✎</button><button class="rowbtn" data-del="'+r.id+'">🗑</button></td></tr>';
     }).join("");
@@ -1136,6 +1136,7 @@
   // ---------- ACTION (Azione consigliata) ----------
   var ACTION_LIST=["Ok","Recupero","Incrementare","Ridurre","Buy","Sell"];
   var ACTION_CLASS={"Ok":"hold","Recupero":"recover","Incrementare":"buy","Ridurre":"sell","Buy":"buy","Sell":"sell"};
+  var ACTION_SYMBOL={"Ok":"●","Recupero":"◐","Incrementare":"△","Ridurre":"▽","Buy":"▲","Sell":"▼"};
   function normAction(a){a=(a||"").trim();return ACTION_LIST.indexOf(a)>-1?a:"Ok";}
   function renderFactor(total){
     var counts={},vals={};FACTOR_ORDER.forEach(function(f){counts[f]=0;vals[f]=0;});
