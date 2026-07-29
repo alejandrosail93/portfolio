@@ -177,6 +177,8 @@
   .buy{background:var(--teal-soft);color:#276b60}.sell{background:var(--terra-soft);color:#b34a26}
   .hold{background:#eee7db;color:var(--ink-soft)}
   .recover{background:#fbead0;color:#96650b}
+  .action-sel{border:0;font-family:inherit;cursor:pointer}
+  .action-sel:focus{outline:none;box-shadow:0 0 0 2px rgba(217,165,49,.35)}
   .field label{display:block;font-size:12.5px;font-weight:650;margin-bottom:6px;color:var(--plum)}
   .field input,.field select,textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:11px;
     font-size:14.5px;font-family:inherit;background:var(--input-bg);color:var(--ink)}
@@ -775,7 +777,9 @@
         '<td class="'+cls+'"><b>'+(r.pnl>=0?"+":"")+fmt(r.pnl)+'</b><div class="bar"><i style="width:'+w+'%;background:'+(r.pnl>=0?"var(--green)":"var(--red)")+'"></i></div></td>'+
         '<td class="'+cls+'">'+pc(r.pnlpc)+'</td>'+
         '<td class="hide-sm"><span class="riskpill" style="background:'+riskColor(rk)+'">'+rk+'</span></td>'+
-        '<td><span class="pillbadge '+ACTION_CLASS[normAction(r.action)]+'" title="'+esc(normAction(r.action))+'">'+ACTION_SYMBOL[normAction(r.action)]+'</span></td>'+
+        '<td><select class="pillbadge action-sel '+ACTION_CLASS[normAction(r.action)]+'" data-actionsel="'+r.id+'">'+
+          ACTION_LIST.map(function(a){return '<option value="'+a+'"'+(a===normAction(r.action)?' selected':'')+'>'+ACTION_SYMBOL[a]+' '+a+'</option>';}).join("")+
+          '</select></td>'+
         '<td>'+qn(num(r.actionQty))+'</td>'+
         '<td><button class="rowbtn" data-edit="'+r.id+'">✎</button><button class="rowbtn" data-del="'+r.id+'">🗑</button></td></tr>';
     }).join("");
@@ -1357,6 +1361,8 @@
     if(state.sortK===k)state.sortDir*=-1;else{state.sortK=k;state.sortDir=(k==="ticker"||k==="cls")?1:-1;}renderTable();});});
   $("#tbody").addEventListener("click",function(e){var ed=e.target.getAttribute("data-edit"),dl=e.target.getAttribute("data-del");
     if(ed)openEdit(ed);if(dl&&confirm("Eliminare questa posizione?")){state.rows=state.rows.filter(function(r){return r.id!==dl;});render();}});
+  $("#tbody").addEventListener("change",function(e){var id=e.target.getAttribute("data-actionsel");
+    if(id){var r=state.rows.filter(function(x){return x.id===id;})[0];if(r){r.action=e.target.value;save();renderTable();}}});
 
   // ---------- add/edit ----------
   function openEdit(id){var r=id?state.rows.filter(function(x){return x.id===id;})[0]:null;
