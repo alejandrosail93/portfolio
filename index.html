@@ -578,7 +578,8 @@
     </div>
     <div class="frow">
       <div class="field"><label>Azione</label><select id="fAction">
-        <option>Ok</option><option>Recupero</option><option>Incrementare</option><option>Ridurre</option><option>Buy</option><option>Sell</option></select></div>
+        <option value="Ok">● Ok</option><option value="Incrementare">△ Incrementare</option><option value="Ridurre">▽ Ridurre</option>
+        <option value="Vendere">▼ Vendere</option><option value="Recupero">◐ Recupero</option></select></div>
       <div class="field"><label>Q.tà operazione (opz.)</label><input id="fActionQty" type="number" step="any" placeholder="0"></div>
     </div>
     <div class="frow">
@@ -1134,10 +1135,11 @@
   function normFactor(f){f=(f||"").trim();return FACTOR_ORDER.indexOf(f)>-1?f:"Nessuno";}
 
   // ---------- ACTION (Azione consigliata) ----------
-  var ACTION_LIST=["Ok","Recupero","Incrementare","Ridurre","Buy","Sell"];
-  var ACTION_CLASS={"Ok":"hold","Recupero":"recover","Incrementare":"buy","Ridurre":"sell","Buy":"buy","Sell":"sell"};
-  var ACTION_SYMBOL={"Ok":"●","Recupero":"◐","Incrementare":"△","Ridurre":"▽","Buy":"▲","Sell":"▼"};
-  function normAction(a){a=(a||"").trim();return ACTION_LIST.indexOf(a)>-1?a:"Ok";}
+  var ACTION_LIST=["Ok","Incrementare","Ridurre","Vendere","Recupero"];
+  var ACTION_CLASS={"Ok":"hold","Incrementare":"buy","Ridurre":"sell","Vendere":"sell","Recupero":"recover"};
+  var ACTION_SYMBOL={"Ok":"●","Incrementare":"△","Ridurre":"▽","Vendere":"▼","Recupero":"◐"};
+  var ACTION_LEGACY={"Buy":"Incrementare","Sell":"Vendere"};
+  function normAction(a){a=(a||"").trim();if(ACTION_LEGACY[a])a=ACTION_LEGACY[a];return ACTION_LIST.indexOf(a)>-1?a:"Ok";}
   function renderFactor(total){
     var counts={},vals={};FACTOR_ORDER.forEach(function(f){counts[f]=0;vals[f]=0;});
     state.rows.forEach(function(r){var f=normFactor(r.factor);counts[f]++;vals[f]+=r.value;});
