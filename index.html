@@ -373,7 +373,7 @@
           <th data-k="qty">Quantità</th><th data-k="avg" class="hide-xs">P. carico</th><th data-k="price">P. attuale</th>
           <th data-k="value">Valore</th><th data-k="weight" class="hide-xs">Peso</th><th data-k="pnl">G/P</th>
           <th data-k="pnlpc">G/P %</th><th data-k="risk" class="hide-sm">Risk</th>
-          <th data-k="action">Azione</th><th data-k="actionQty">Q.tà op.</th><th class="ns"></th>
+          <th data-k="action">Azione</th><th data-k="targetWeight">Peso prev.</th><th data-k="targetDiff">Q.tà op.</th><th class="ns"></th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -583,7 +583,7 @@
       <div class="field"><label>Azione</label><select id="fAction">
         <option value="Ok">● Ok</option><option value="Incrementare">△ Incrementare</option><option value="Ridurre">▽ Ridurre</option>
         <option value="Vendere">▼ Vendere</option><option value="Recupero">◐ Recupero</option></select></div>
-      <div class="field"><label>Q.tà operazione (opz.)</label><input id="fActionQty" type="number" step="any" placeholder="0"></div>
+      <div class="field"><label>Peso previsto (%) (opz.)</label><input id="fTargetWeight" type="number" step="any" placeholder="es. 15"></div>
     </div>
     <div class="frow">
       <div class="field"><label>Yield dividendo % (opz.)</label><input id="fYield" type="number" step="any"></div>
@@ -742,7 +742,8 @@
 
   function enrich(){ensureFx();var t=0;state.rows.forEach(function(r){var rate=fxRate(r.currency);r.value=num(r.qty)*num(r.price)*rate;r.cost=num(r.qty)*num(r.avg)*rate;
     r.pnl=r.value-r.cost;r.pnlpc=r.cost>0?r.pnl/r.cost*100:0;t+=r.value;});
-    state.rows.forEach(function(r){r.weight=t>0?r.value/t*100:0;});return t;}
+    state.rows.forEach(function(r){r.weight=t>0?r.value/t*100:0;
+      r.targetDiff=(r.targetWeight!=null&&t>0)?(num(r.targetWeight)-r.weight)/100*t:null;});return t;}
   function catMap(){return groupBy("cls","Altro");}
   function groupBy(f,fb){var m={};state.rows.forEach(function(r){var k=((r[f]||"")+"").trim()||(fb||"—");m[k]=(m[k]||0)+r.value;});return m;}
   function topShare(m,total){var best=null,bv=-1;Object.keys(m).forEach(function(k){if(k!=="—"&&k!=="Altro"&&m[k]>bv){bv=m[k];best=k;}});return best&&total>0?{name:best,pct:bv/total*100}:null;}
@@ -770,7 +771,7 @@
         x=String(x||"").toLowerCase();y=String(y||"").toLowerCase();return x<y?-dir:x>y?dir:0;}
       return (num(x)-num(y))*dir;});
     var maxAbs=Math.max.apply(null,[1].concat(rows.map(function(r){return Math.abs(r.pnl);})));
-    if(!rows.length&&state.rows.length){$("#tbody").innerHTML='<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:26px">Nessun titolo corrisponde ai filtri.</td></tr>';}
+    if(!rows.length&&state.rows.length){$("#tbody").innerHTML='<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:26px">Nessun titolo corrisponde ai filtri.</td></tr>';}
     else $("#tbody").innerHTML=rows.map(function(r){var cls=r.pnl>=0?"pos":"neg",w=Math.min(100,Math.abs(r.pnl)/maxAbs*100),rk=Math.max(3,Math.min(9,Math.round(num(r.risk))||6));
       return '<tr><td><span class="tk">'+esc(r.ticker)+'</span>'+(r.name?'<div class="nm2">'+esc(r.name)+'</div>':'')+'</td>'+
         '<td class="hide-sm"><span class="tag">'+esc(r.cls||"Altro")+'</span></td>'+
@@ -780,7 +781,8 @@
         '<td class="'+cls+'">'+pc(r.pnlpc)+'</td>'+
         '<td class="hide-sm"><span class="riskpill" style="background:'+riskColor(rk)+'">'+rk+'</span></td>'+
         '<td><span class="pillbadge '+ACTION_CLASS[normAction(r.action)]+'" title="'+esc(normAction(r.action))+'">'+ACTION_SYMBOL[normAction(r.action)]+'</span></td>'+
-        '<td>'+qn(num(r.actionQty))+'</td>'+
+        '<td>'+(r.targetWeight!=null?num(r.targetWeight).toLocaleString("it-IT",{maximumFractionDigits:1})+"%":'<span class="nm2">–</span>')+'</td>'+
+        '<td'+(r.targetDiff!=null?' class="'+(r.targetDiff>=0?"pos":"neg")+'"':'')+'>'+(r.targetDiff!=null?(r.targetDiff>=0?"+":"")+fmt0(r.targetDiff):'<span class="nm2">–</span>')+'</td>'+
         '<td><button class="rowbtn" data-edit="'+r.id+'">✎</button><button class="rowbtn" data-del="'+r.id+'">🗑</button></td></tr>';
     }).join("");
     var fc=$("#fltCount");if(fc)fc.textContent=state.rows.length?(rows.length+" di "+state.rows.length):"";
@@ -1370,17 +1372,18 @@
     $("#fQty").value=r?r.qty:"";$("#fAvg").value=r?r.avg:"";
     $("#fCur").value=r?(r.currency||"EUR"):"EUR";$("#fYield").value=r?(r.yield||""):"";$("#fRisk").value=r?(r.risk||""):"";
     $("#fFactor").value=r?normFactor(r.factor):"Nessuno";
-    $("#fAction").value=r?normAction(r.action):"Ok";$("#fActionQty").value=r?(r.actionQty||""):"";
+    $("#fAction").value=r?normAction(r.action):"Ok";$("#fTargetWeight").value=r&&r.targetWeight!=null?r.targetWeight:"";
     $("#ovEdit").classList.add("on");$("#fTicker").focus();}
   $("#btnAdd").addEventListener("click",function(){openEdit(null);});
   $("#savePos").addEventListener("click",function(){var t=$("#fTicker").value.trim();if(!t){$("#fTicker").focus();return;}
     var rk=Math.round(num($("#fRisk").value));rk=rk?Math.max(3,Math.min(9,rk)):6;
     var id=$("#fId").value,prev=id?state.rows.filter(function(r){return r.id===id;})[0]:null;
     var typedCountry=$("#fCountry").value.trim(),canonCountry=typedCountry?findCountryCanonical(typedCountry):null;
+    var twRaw=$("#fTargetWeight").value.trim();
     var obj={id:id||uid(),ticker:t,name:$("#fName").value.trim(),cls:$("#fCls").value,
       sector:$("#fSector").value.trim(),country:canonCountry||typedCountry,currency:$("#fCur").value,
       qty:num($("#fQty").value),avg:num($("#fAvg").value),price:prev?num(prev.price):0,yield:num($("#fYield").value),risk:rk,
-      factor:$("#fFactor").value||"Nessuno",action:$("#fAction").value||"Ok",actionQty:num($("#fActionQty").value),
+      factor:$("#fFactor").value||"Nessuno",action:$("#fAction").value||"Ok",targetWeight:twRaw===""?null:num(twRaw),
       priceStale:prev?!!prev.priceStale:true};
     if(obj.country&&!canonCountry){state.customCountries.push(obj.country);buildCountryList();}
     if(id)state.rows=state.rows.map(function(r){return r.id===id?obj:r;});else state.rows.push(obj);
