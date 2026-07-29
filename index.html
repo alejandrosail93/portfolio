@@ -36,7 +36,6 @@
   html[data-theme="dark"] .buy{background:#12302a;color:#5cc9b3}
   html[data-theme="dark"] .sell{background:#33211a;color:#e39670}
   html[data-theme="dark"] .hold{background:#20262f;color:var(--ink-soft)}
-  html[data-theme="dark"] .recover{background:#3a2c12;color:#e8b34a}
   html[data-theme="dark"] .note{background:#241d10;border-color:#463913;color:var(--ink-soft)}
   html[data-theme="dark"] .warnbox{background:#33211a;border-color:#5a3422;color:#e39670}
   *{box-sizing:border-box}
@@ -176,7 +175,6 @@
     padding:5px 11px;border-radius:20px}
   .buy{background:var(--teal-soft);color:#276b60}.sell{background:var(--terra-soft);color:#b34a26}
   .hold{background:#eee7db;color:var(--ink-soft)}
-  .recover{background:#fbead0;color:#96650b}
   .field label{display:block;font-size:12.5px;font-weight:650;margin-bottom:6px;color:var(--plum)}
   .field input,.field select,textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:11px;
     font-size:14.5px;font-family:inherit;background:var(--input-bg);color:var(--ink)}
@@ -362,7 +360,7 @@
       <select id="fltCountry"><option value="">Paese: tutti</option></select>
       <select id="fltAction"><option value="">Azione: tutte</option>
         <option value="Ok">● Ok</option><option value="Incrementare">△ Incrementare</option><option value="Ridurre">▽ Ridurre</option>
-        <option value="Vendere">▼ Vendere</option><option value="Recupero">◐ Recupero</option></select>
+        <option value="Vendere">▼ Vendere</option></select>
       <span class="fcount" id="fltCount"></span>
       <button class="fclear" id="fltClear">Azzera filtri</button>
     </div>
@@ -579,12 +577,7 @@
         <option>NOK</option><option>DKK</option><option>JPY</option><option>CAD</option><option>AUD</option><option>CNY</option></select></div>
       <div class="field"><label>Rischio 3–9 (opz.)</label><input id="fRisk" type="number" min="3" max="9" step="1" placeholder="6"></div>
     </div>
-    <div class="frow">
-      <div class="field"><label>Azione</label><select id="fAction">
-        <option value="Ok">● Ok</option><option value="Incrementare">△ Incrementare</option><option value="Ridurre">▽ Ridurre</option>
-        <option value="Vendere">▼ Vendere</option><option value="Recupero">◐ Recupero</option></select></div>
-      <div class="field"><label>Peso previsto (%) (opz.)</label><input id="fTargetWeight" type="number" step="any" placeholder="es. 15"></div>
-    </div>
+    <div class="field"><label>Peso previsto (%) (opz.)</label><input id="fTargetWeight" type="number" step="any" placeholder="es. 15"></div>
     <div class="frow">
       <div class="field"><label>Yield dividendo % (opz.)</label><input id="fYield" type="number" step="any"></div>
       <div class="field"><label>Fattore (opz.)</label><select id="fFactor">
@@ -736,14 +729,15 @@
       if(f.cls&&(r.cls||"")!==f.cls)return false;
       if(f.sector&&(r.sector||"")!==f.sector)return false;
       if(f.country&&(r.country||"")!==f.country)return false;
-      if(f.action&&normAction(r.action)!==f.action)return false;
+      if(f.action&&r.action!==f.action)return false;
       if(q){var hay=((r.ticker||"")+" "+(r.name||"")).toLowerCase();if(hay.indexOf(q)<0)return false;}
       return true;});}
 
   function enrich(){ensureFx();var t=0;state.rows.forEach(function(r){var rate=fxRate(r.currency);r.value=num(r.qty)*num(r.price)*rate;r.cost=num(r.qty)*num(r.avg)*rate;
     r.pnl=r.value-r.cost;r.pnlpc=r.cost>0?r.pnl/r.cost*100:0;t+=r.value;});
     state.rows.forEach(function(r){r.weight=t>0?r.value/t*100:0;
-      r.targetDiff=(r.targetWeight!=null&&t>0)?(num(r.targetWeight)-r.weight)/100*t:null;});return t;}
+      r.targetDiff=(r.targetWeight!=null&&t>0)?(num(r.targetWeight)-r.weight)/100*t:null;
+      r.action=computeAction(r);});return t;}
   function catMap(){return groupBy("cls","Altro");}
   function groupBy(f,fb){var m={};state.rows.forEach(function(r){var k=((r[f]||"")+"").trim()||(fb||"—");m[k]=(m[k]||0)+r.value;});return m;}
   function topShare(m,total){var best=null,bv=-1;Object.keys(m).forEach(function(k){if(k!=="—"&&k!=="Altro"&&m[k]>bv){bv=m[k];best=k;}});return best&&total>0?{name:best,pct:bv/total*100}:null;}
@@ -767,7 +761,7 @@
   }
   function renderTable(){
     var k=state.sortK,dir=state.sortDir,rows=filteredRows().slice().sort(function(a,b){var x=a[k],y=b[k];
-      if(k==="ticker"||k==="cls"||k==="action"){if(k==="action"){x=normAction(x);y=normAction(y);}
+      if(k==="ticker"||k==="cls"||k==="action"){
         x=String(x||"").toLowerCase();y=String(y||"").toLowerCase();return x<y?-dir:x>y?dir:0;}
       return (num(x)-num(y))*dir;});
     var maxAbs=Math.max.apply(null,[1].concat(rows.map(function(r){return Math.abs(r.pnl);})));
@@ -780,7 +774,7 @@
         '<td class="'+cls+'"><b>'+(r.pnl>=0?"+":"")+fmt(r.pnl)+'</b><div class="bar"><i style="width:'+w+'%;background:'+(r.pnl>=0?"var(--green)":"var(--red)")+'"></i></div></td>'+
         '<td class="'+cls+'">'+pc(r.pnlpc)+'</td>'+
         '<td class="hide-sm"><span class="riskpill" style="background:'+riskColor(rk)+'">'+rk+'</span></td>'+
-        '<td><span class="pillbadge '+ACTION_CLASS[normAction(r.action)]+'" title="'+esc(normAction(r.action))+'">'+ACTION_SYMBOL[normAction(r.action)]+'</span></td>'+
+        '<td><span class="pillbadge '+ACTION_CLASS[r.action]+'" title="'+esc(r.action)+'">'+ACTION_SYMBOL[r.action]+'</span></td>'+
         '<td>'+(r.targetWeight!=null?num(r.targetWeight).toLocaleString("it-IT",{maximumFractionDigits:1})+"%":'<span class="nm2">–</span>')+'</td>'+
         '<td'+(r.targetDiff!=null?' class="'+(r.targetDiff>=0?"pos":"neg")+'"':'')+'>'+(r.targetDiff!=null?(r.targetDiff>=0?"+":"")+fmt0(r.targetDiff):'<span class="nm2">–</span>')+'</td>'+
         '<td><button class="rowbtn" data-edit="'+r.id+'">✎</button><button class="rowbtn" data-del="'+r.id+'">🗑</button></td></tr>';
@@ -1140,12 +1134,17 @@
   var FACTOR_COLORS={"Value":"#2e9e6b","Quality":"#5aa469","Quality-Growth":"#c9a227","Growth":"#d9a531","Trend Following":"#dd7a54","Speculative":"#d1584f","Nessuno":"#b7ac9a"};
   function normFactor(f){f=(f||"").trim();return FACTOR_ORDER.indexOf(f)>-1?f:"Nessuno";}
 
-  // ---------- ACTION (Azione consigliata) ----------
-  var ACTION_LIST=["Ok","Incrementare","Ridurre","Vendere","Recupero"];
-  var ACTION_CLASS={"Ok":"hold","Incrementare":"buy","Ridurre":"sell","Vendere":"sell","Recupero":"recover"};
-  var ACTION_SYMBOL={"Ok":"●","Incrementare":"△","Ridurre":"▽","Vendere":"▼","Recupero":"◐"};
-  var ACTION_LEGACY={"Buy":"Incrementare","Sell":"Vendere"};
-  function normAction(a){a=(a||"").trim();if(ACTION_LEGACY[a])a=ACTION_LEGACY[a];return ACTION_LIST.indexOf(a)>-1?a:"Ok";}
+  // ---------- ACTION (Azione consigliata, calcolata dal peso previsto) ----------
+  var ACTION_LIST=["Ok","Incrementare","Ridurre","Vendere"];
+  var ACTION_CLASS={"Ok":"hold","Incrementare":"buy","Ridurre":"sell","Vendere":"sell"};
+  var ACTION_SYMBOL={"Ok":"●","Incrementare":"△","Ridurre":"▽","Vendere":"▼"};
+  var ACTION_OK_RANGE=300;
+  function computeAction(r){
+    if(r.targetWeight==null||r.targetDiff==null)return "Ok";
+    if(Math.abs(r.targetDiff)<=ACTION_OK_RANGE)return "Ok";
+    if(r.targetDiff>0)return "Incrementare";
+    return num(r.targetWeight)<=0?"Vendere":"Ridurre";
+  }
   function renderFactor(total){
     var counts={},vals={};FACTOR_ORDER.forEach(function(f){counts[f]=0;vals[f]=0;});
     state.rows.forEach(function(r){var f=normFactor(r.factor);counts[f]++;vals[f]+=r.value;});
@@ -1372,7 +1371,7 @@
     $("#fQty").value=r?r.qty:"";$("#fAvg").value=r?r.avg:"";
     $("#fCur").value=r?(r.currency||"EUR"):"EUR";$("#fYield").value=r?(r.yield||""):"";$("#fRisk").value=r?(r.risk||""):"";
     $("#fFactor").value=r?normFactor(r.factor):"Nessuno";
-    $("#fAction").value=r?normAction(r.action):"Ok";$("#fTargetWeight").value=r&&r.targetWeight!=null?r.targetWeight:"";
+    $("#fTargetWeight").value=r&&r.targetWeight!=null?r.targetWeight:"";
     $("#ovEdit").classList.add("on");$("#fTicker").focus();}
   $("#btnAdd").addEventListener("click",function(){openEdit(null);});
   $("#savePos").addEventListener("click",function(){var t=$("#fTicker").value.trim();if(!t){$("#fTicker").focus();return;}
@@ -1383,7 +1382,7 @@
     var obj={id:id||uid(),ticker:t,name:$("#fName").value.trim(),cls:$("#fCls").value,
       sector:$("#fSector").value.trim(),country:canonCountry||typedCountry,currency:$("#fCur").value,
       qty:num($("#fQty").value),avg:num($("#fAvg").value),price:prev?num(prev.price):0,yield:num($("#fYield").value),risk:rk,
-      factor:$("#fFactor").value||"Nessuno",action:$("#fAction").value||"Ok",targetWeight:twRaw===""?null:num(twRaw),
+      factor:$("#fFactor").value||"Nessuno",targetWeight:twRaw===""?null:num(twRaw),
       priceStale:prev?!!prev.priceStale:true};
     if(obj.country&&!canonCountry){state.customCountries.push(obj.country);buildCountryList();}
     if(id)state.rows=state.rows.map(function(r){return r.id===id?obj:r;});else state.rows.push(obj);
