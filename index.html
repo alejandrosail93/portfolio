@@ -177,8 +177,6 @@
   .buy{background:var(--teal-soft);color:#276b60}.sell{background:var(--terra-soft);color:#b34a26}
   .hold{background:#eee7db;color:var(--ink-soft)}
   .recover{background:#fbead0;color:#96650b}
-  .action-sel{border:0;font-family:inherit;cursor:pointer}
-  .action-sel:focus{outline:none;box-shadow:0 0 0 2px rgba(217,165,49,.35)}
   .field label{display:block;font-size:12.5px;font-weight:650;margin-bottom:6px;color:var(--plum)}
   .field input,.field select,textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:11px;
     font-size:14.5px;font-family:inherit;background:var(--input-bg);color:var(--ink)}
@@ -362,6 +360,9 @@
       <select id="fltCls"><option value="">Categoria: tutte</option></select>
       <select id="fltSector"><option value="">Settore: tutti</option></select>
       <select id="fltCountry"><option value="">Paese: tutti</option></select>
+      <select id="fltAction"><option value="">Azione: tutte</option>
+        <option value="Ok">● Ok</option><option value="Incrementare">△ Incrementare</option><option value="Ridurre">▽ Ridurre</option>
+        <option value="Vendere">▼ Vendere</option><option value="Recupero">◐ Recupero</option></select>
       <span class="fcount" id="fltCount"></span>
       <button class="fclear" id="fltClear">Azzera filtri</button>
     </div>
@@ -688,7 +689,7 @@
   var KEY="pf_dash_v1";
   var DEFAULT_FX={EUR:1,USD:0.92,GBP:1.17,CHF:1.04,SEK:0.088,NOK:0.086,DKK:0.134,JPY:0.0060,CAD:0.68,AUD:0.61,CNY:0.127};
   var BASE_COUNTRIES=["Italia","Stati Uniti","Europa","Eurozona","Germania","Regno Unito","Giappone","Cina","Mercati Emergenti","Asia-Pacifico","Nord America","Globale"];
-  var state={rows:[],view:"pos",sortK:"value",sortDir:-1,cur:"€",base:"EUR",targets:{},fx:{EUR:1},history:[],filters:{search:"",cls:"",sector:"",country:""},theme:"light",hideValues:false,customCountries:[],lastUpdate:0,updatedAt:0};
+  var state={rows:[],view:"pos",sortK:"value",sortDir:-1,cur:"€",base:"EUR",targets:{},fx:{EUR:1},history:[],filters:{search:"",cls:"",sector:"",country:"",action:""},theme:"light",hideValues:false,customCountries:[],lastUpdate:0,updatedAt:0};
   var PAL=["#d9a531","#295a86","#3f9e8f","#dd7a54","#6aa0d0","#eec25a","#4a9d8e","#c47f2e","#5aa469","#a2946f","#7fb0d6","#3d7ea6"];
   var $=function(s){return document.querySelector(s);};
   var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};
@@ -735,6 +736,7 @@
       if(f.cls&&(r.cls||"")!==f.cls)return false;
       if(f.sector&&(r.sector||"")!==f.sector)return false;
       if(f.country&&(r.country||"")!==f.country)return false;
+      if(f.action&&normAction(r.action)!==f.action)return false;
       if(q){var hay=((r.ticker||"")+" "+(r.name||"")).toLowerCase();if(hay.indexOf(q)<0)return false;}
       return true;});}
 
@@ -777,9 +779,7 @@
         '<td class="'+cls+'"><b>'+(r.pnl>=0?"+":"")+fmt(r.pnl)+'</b><div class="bar"><i style="width:'+w+'%;background:'+(r.pnl>=0?"var(--green)":"var(--red)")+'"></i></div></td>'+
         '<td class="'+cls+'">'+pc(r.pnlpc)+'</td>'+
         '<td class="hide-sm"><span class="riskpill" style="background:'+riskColor(rk)+'">'+rk+'</span></td>'+
-        '<td><select class="pillbadge action-sel '+ACTION_CLASS[normAction(r.action)]+'" data-actionsel="'+r.id+'">'+
-          ACTION_LIST.map(function(a){return '<option value="'+a+'"'+(a===normAction(r.action)?' selected':'')+'>'+ACTION_SYMBOL[a]+' '+a+'</option>';}).join("")+
-          '</select></td>'+
+        '<td><span class="pillbadge '+ACTION_CLASS[normAction(r.action)]+'" title="'+esc(normAction(r.action))+'">'+ACTION_SYMBOL[normAction(r.action)]+'</span></td>'+
         '<td>'+qn(num(r.actionQty))+'</td>'+
         '<td><button class="rowbtn" data-edit="'+r.id+'">✎</button><button class="rowbtn" data-del="'+r.id+'">🗑</button></td></tr>';
     }).join("");
@@ -995,9 +995,9 @@
 
   // ---------- FILTERS ----------
   $("#fltSearch").addEventListener("input",function(){state.filters.search=this.value;renderTable();});
-  ["fltCls","fltSector","fltCountry"].forEach(function(id){var f=id.replace("flt","").toLowerCase();
+  ["fltCls","fltSector","fltCountry","fltAction"].forEach(function(id){var f=id.replace("flt","").toLowerCase();
     $("#"+id).addEventListener("change",function(){state.filters[f]=this.value;renderTable();});});
-  $("#fltClear").addEventListener("click",function(){state.filters={search:"",cls:"",sector:"",country:""};$("#fltSearch").value="";populateFilters();renderTable();});
+  $("#fltClear").addEventListener("click",function(){state.filters={search:"",cls:"",sector:"",country:"",action:""};$("#fltSearch").value="";$("#fltAction").value="";populateFilters();renderTable();});
 
   // ---------- CURRENCIES (FX) ----------
   function renderFx(){var used={};state.rows.forEach(function(r){var c=r.currency||state.base;if(c!==state.base)used[c]=1;});
@@ -1361,8 +1361,6 @@
     if(state.sortK===k)state.sortDir*=-1;else{state.sortK=k;state.sortDir=(k==="ticker"||k==="cls")?1:-1;}renderTable();});});
   $("#tbody").addEventListener("click",function(e){var ed=e.target.getAttribute("data-edit"),dl=e.target.getAttribute("data-del");
     if(ed)openEdit(ed);if(dl&&confirm("Eliminare questa posizione?")){state.rows=state.rows.filter(function(r){return r.id!==dl;});render();}});
-  $("#tbody").addEventListener("change",function(e){var id=e.target.getAttribute("data-actionsel");
-    if(id){var r=state.rows.filter(function(x){return x.id===id;})[0];if(r){r.action=e.target.value;save();renderTable();}}});
 
   // ---------- add/edit ----------
   function openEdit(id){var r=id?state.rows.filter(function(x){return x.id===id;})[0]:null;
