@@ -559,7 +559,7 @@
     <div class="hd"><h2><span class="chip-ic ic-gold">◆</span> Distribuzione per Fattore</h2>
       <span class="sub" id="factorTop"></span></div>
     <div class="bd"><div class="barbell" id="factorBar"></div>
-      <div class="note" style="margin-top:14px">Assegna un <b>fattore</b> (Growth, Quality, Trend Following, Quality-Growth, Speculative, Value) a ogni titolo nella sua scheda per vedere come si distribuisce il portafoglio per stile di investimento.</div>
+      <div class="note" style="margin-top:14px">Assegna un <b>fattore</b> (Growth, Thematic Growth, Quality, Trend Following, Quality-Growth, Speculative, Value) a ogni titolo nella sua scheda per vedere come si distribuisce il portafoglio per stile di investimento.</div>
     </div>
   </div>
 </section>
@@ -604,7 +604,7 @@
     <div class="frow">
       <div class="field"><label>Yield dividendo % (opz.)</label><input id="fYield" type="number" step="any"></div>
       <div class="field"><label>Fattore (opz.)</label><select id="fFactor">
-        <option value="Nessuno">Nessuno</option><option>Growth</option><option>Quality</option>
+        <option value="Nessuno">Nessuno</option><option>Growth</option><option value="Thematic Growth">Thematic Growth</option><option>Quality</option>
         <option value="Quality-Growth">Quality-Growth</option><option value="Trend Following">Trend Following</option>
         <option>Speculative</option><option>Value</option></select></div>
     </div>
@@ -643,7 +643,7 @@
     <div class="frow">
       <div class="field"><label>Yield dividendo % (opz.)</label><input id="fwYield" type="number" step="any"></div>
       <div class="field"><label>Fattore (opz.)</label><select id="fwFactor">
-        <option value="Nessuno">Nessuno</option><option>Growth</option><option>Quality</option>
+        <option value="Nessuno">Nessuno</option><option>Growth</option><option value="Thematic Growth">Thematic Growth</option><option>Quality</option>
         <option value="Quality-Growth">Quality-Growth</option><option value="Trend Following">Trend Following</option>
         <option>Speculative</option><option>Value</option></select></div>
     </div>
@@ -1192,8 +1192,8 @@
     $("#riskAvg").textContent=vs>0?(ws/vs).toFixed(1)+" / 9":"–";}
 
   // ---------- FACTOR DISTRIBUTION ----------
-  var FACTOR_ORDER=["Value","Quality","Quality-Growth","Growth","Trend Following","Speculative","Nessuno"];
-  var FACTOR_COLORS={"Value":"#2e9e6b","Quality":"#5aa469","Quality-Growth":"#c9a227","Growth":"#d9a531","Trend Following":"#dd7a54","Speculative":"#d1584f","Nessuno":"#b7ac9a"};
+  var FACTOR_ORDER=["Value","Quality","Quality-Growth","Growth","Thematic Growth","Trend Following","Speculative","Nessuno"];
+  var FACTOR_COLORS={"Value":"#2e9e6b","Quality":"#5aa469","Quality-Growth":"#c9a227","Growth":"#d9a531","Thematic Growth":"#3f9e8f","Trend Following":"#dd7a54","Speculative":"#d1584f","Nessuno":"#b7ac9a"};
   function normFactor(f){f=(f||"").trim();return FACTOR_ORDER.indexOf(f)>-1?f:"Nessuno";}
 
   // ---------- ACTION (Azione consigliata, calcolata dal peso previsto) ----------
