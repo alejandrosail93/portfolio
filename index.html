@@ -394,7 +394,7 @@
       <table id="tblWatch">
         <thead><tr>
           <th class="ns">Titolo</th><th class="ns hide-sm">Categoria</th><th class="ns hide-xs">Settore</th><th class="ns hide-xs">Paese</th>
-          <th class="ns">Quantità</th><th class="ns">Prezzo carico</th><th class="ns"></th>
+          <th class="ns">Fattore</th><th class="ns hide-sm">Rischio</th><th class="ns">Peso prev.</th><th class="ns"></th>
         </tr></thead>
         <tbody id="watchBody"></tbody>
       </table>
@@ -1459,8 +1459,9 @@
         '<td class="hide-sm"><span class="tag">'+esc(w.cls||"Altro")+'</span></td>'+
         '<td class="hide-xs">'+(w.sector?esc(w.sector):'<span class="nm2">–</span>')+'</td>'+
         '<td class="hide-xs">'+(w.country?esc(w.country):'<span class="nm2">–</span>')+'</td>'+
-        '<td>'+(num(w.qty)?qn(num(w.qty)):'<span class="nm2">–</span>')+'</td>'+
-        '<td>'+(num(w.avg)?locCell(num(w.avg),w.currency):'<span class="nm2">–</span>')+'</td>'+
+        '<td>'+(normFactor(w.factor)!=="Nessuno"?esc(normFactor(w.factor)):'<span class="nm2">–</span>')+'</td>'+
+        '<td class="hide-sm"><span class="riskpill" style="background:'+riskColor(Math.max(3,Math.min(9,Math.round(num(w.risk))||6)))+'">'+Math.max(3,Math.min(9,Math.round(num(w.risk))||6))+'</span></td>'+
+        '<td>'+(w.targetWeight!=null?num(w.targetWeight).toLocaleString("it-IT",{maximumFractionDigits:1})+"%":'<span class="nm2">–</span>')+'</td>'+
         '<td><button class="rowbtn" data-wedit="'+w.id+'">✎</button><button class="rowbtn" data-wdel="'+w.id+'">🗑</button></td></tr>';
     }).join("");}
   function openWatchEdit(id){var w=id?state.watchlist.filter(function(x){return x.id===id;})[0]:null;
