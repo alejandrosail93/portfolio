@@ -453,6 +453,10 @@
           <label>Rendimento annuo atteso: <b id="sRateLbl">7%</b></label>
           <input id="sRate" class="range" type="range" min="0" max="15" step="0.5" value="7">
         </div>
+        <div class="field">
+          <label>Inflazione annua attesa: <b id="sInflLbl">2%</b> <span class="nm2" id="sRealLbl"></span></label>
+          <input id="sInfl" class="range" type="range" min="0" max="10" step="0.5" value="2">
+        </div>
         <button class="btn btn-line btn-sm" id="sUseCur">Usa il valore attuale del portafoglio</button>
       </div>
     </div>
@@ -465,6 +469,7 @@
         <div class="kv"><span class="k">Capitale versato</span><span class="v" id="sInvested">€0</span></div>
         <div class="kv"><span class="k">Interessi maturati</span><span class="v pos" id="sGain">€0</span></div>
         <div class="kv"><span class="k">Moltiplicatore</span><span class="v" id="sMult">–</span></div>
+        <div class="kv"><span class="k">Valore reale (potere d'acquisto di oggi)</span><span class="v" id="sRealFinal">€0</span></div>
       </div>
     </div>
   </div>
@@ -921,16 +926,22 @@
   // ---------- SIMULATOR ----------
   function simulate(){
     var init=num($("#sInit").value),pac=num($("#sPac").value),years=Math.max(0,Math.round(num($("#sYears").value))),rate=num($("#sRate").value)/100;
+    var infl=num($("#sInfl").value)/100;
     var mr=Math.pow(1+rate,1/12)-1,bal=init,pts=[init];
     for(var y=1;y<=years;y++){for(var m=0;m<12;m++){bal=bal*(1+mr)+pac;}pts.push(bal);}
     var invested=init+pac*12*years,gain=bal-invested;
+    var realRate=((1+rate)/(1+infl)-1)*100;
+    var realFinal=bal/Math.pow(1+infl,years);
     $("#sRateLbl").textContent=num($("#sRate").value).toLocaleString("it-IT")+"%";
+    $("#sInflLbl").textContent=num($("#sInfl").value).toLocaleString("it-IT")+"%";
+    $("#sRealLbl").textContent="· rendimento reale ~"+realRate.toLocaleString("it-IT",{maximumFractionDigits:1})+"%";
     $("#sHorizon").textContent=years+" anni · "+num($("#sRate").value).toLocaleString("it-IT")+"% annuo";
     $("#sFinal").textContent=fmt0(bal);
     $("#sSub").textContent="valore stimato tra "+years+" anni";
     $("#sInvested").textContent=fmt0(invested);
     $("#sGain").textContent="+"+fmt0(gain);
     $("#sMult").textContent=invested>0?(bal/invested).toLocaleString("it-IT",{maximumFractionDigits:2})+"×":"–";
+    $("#sRealFinal").textContent=fmt0(realFinal);
     drawArea(pts,invested,init,pac);
   }
   function drawArea(pts,invested,init,pac){
@@ -951,7 +962,7 @@
       '<span><span style="display:inline-block;width:14px;height:3px;background:#d9a531;vertical-align:middle"></span> con rendimento</span>'+
       '<span><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #c9bca9;vertical-align:middle"></span> solo versato</span></div>';
   }
-  ["sInit","sPac","sYears","sRate"].forEach(function(id){$("#"+id).addEventListener("input",simulate);});
+  ["sInit","sPac","sYears","sRate","sInfl"].forEach(function(id){$("#"+id).addEventListener("input",simulate);});
   $("#sUseCur").addEventListener("click",function(){$("#sInit").value=Math.round(enrich());simulate();});
 
   // ---------- HEALTH ----------
