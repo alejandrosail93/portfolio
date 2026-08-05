@@ -210,13 +210,6 @@
   .goal-card .gyear{font-size:12px;color:var(--muted);margin-top:2px}
   .goal-card .gcur{font-size:12px;color:var(--muted);margin-top:2px}
   .goal-card .gactions{display:flex;justify-content:center;gap:6px;margin-top:12px}
-  /* recommendations */
-  .reco-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line-2);cursor:pointer;border-radius:8px}
-  .reco-row:last-child{border-bottom:0}
-  .reco-row:hover{background:var(--hover)}
-  .reco-row .rname{flex:1;min-width:0}
-  .row-flash{animation:rowflash 1.6s ease}
-  @keyframes rowflash{0%{background:var(--gold-soft)}100%{background:transparent}}
   .alert{display:flex;gap:11px;align-items:flex-start;padding:12px 14px;border-radius:12px;margin-bottom:10px;font-size:13.5px}
   .alert .ai{flex:none;width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-size:13px;font-weight:800}
   .a-warn{background:#fdf3e0;border:1px solid #f2dca6}.a-warn .ai{background:var(--amber);color:#fff}
@@ -379,11 +372,6 @@
       <div class="hd"><h2><span class="chip-ic ic-terra">↕</span> Contributo al risultato</h2></div>
       <div class="bd" id="perfBody"></div>
     </div>
-  </div>
-
-  <div class="card" style="margin-top:20px" id="recoCard">
-    <div class="hd"><h2><span class="chip-ic ic-terra">!</span> Raccomandazioni</h2><span class="sub" id="recoCount"></span></div>
-    <div class="bd" id="recoBody"></div>
   </div>
 
   <div class="card" style="margin-top:20px">
@@ -914,7 +902,7 @@
       $("#hBest").innerHTML='<span class="up">▲ '+esc(b.ticker)+'</span> '+pc(b.pnlpc);
       $("#hWorst").innerHTML=w!==b?'<span class="down">▼ '+esc(w.ticker)+'</span> '+pc(w.pnlpc):'';
     }else{$("#hBest").textContent="–";$("#hWorst").textContent="";}
-    renderTable();renderDonut();renderPerf();renderReco();
+    renderTable();renderDonut();renderPerf();
     $("#empty").style.display=state.rows.length?"none":"block";
     $("#tbl").style.display=state.rows.length?"table":"none";
   }
@@ -926,7 +914,7 @@
     var maxAbs=Math.max.apply(null,[1].concat(rows.map(function(r){return Math.abs(r.pnl);})));
     if(!rows.length&&state.rows.length){$("#tbody").innerHTML='<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:26px">Nessun titolo corrisponde ai filtri.</td></tr>';}
     else $("#tbody").innerHTML=rows.map(function(r){var cls=r.pnl>=0?"pos":"neg",w=Math.min(100,Math.abs(r.pnl)/maxAbs*100),rk=Math.max(3,Math.min(9,Math.round(num(r.risk))||6));
-      return '<tr id="posrow-'+r.id+'"><td><span class="tk">'+esc(r.ticker)+'</span>'+(r.name?'<div class="nm2">'+esc(r.name)+'</div>':'')+'</td>'+
+      return '<tr><td><span class="tk">'+esc(r.ticker)+'</span>'+(r.name?'<div class="nm2">'+esc(r.name)+'</div>':'')+'</td>'+
         '<td class="hide-sm"><span class="tag">'+esc(r.cls||"Altro")+'</span></td>'+
         '<td>'+qn(num(r.qty))+'</td><td class="hide-xs">'+locCell(num(r.avg),r.currency)+'</td><td>'+locCell(num(r.price),r.currency)+(r.priceStale?' <span class="stale" title="prezzo non aggiornato online">•</span>':'')+'</td>'+
         '<td><b>'+fmt(r.value)+'</b></td><td class="hide-xs">'+r.weight.toLocaleString("it-IT",{maximumFractionDigits:1})+'%</td>'+
@@ -943,27 +931,6 @@
       th.querySelectorAll(".ar").forEach(function(e){e.remove();});
       if(kk===k){var a=document.createElement("span");a.className="ar";a.textContent=dir<0?"▼":"▲";th.appendChild(a);}});
   }
-  function recoReason(r){var w=r.weight.toLocaleString("it-IT",{maximumFractionDigits:1})+"%",tw=num(r.targetWeight).toLocaleString("it-IT",{maximumFractionDigits:1})+"%";
-    if(r.action==="Vendere")return "Peso previsto 0%: uscita pianificata dalla posizione.";
-    if(r.action==="Incrementare")return "Sottopesato: "+w+" attuale vs "+tw+" target ("+(r.targetDiff>=0?"+":"")+fmt0(r.targetDiff)+")";
-    if(r.action==="Ridurre")return "Sovrappesato: "+w+" attuale vs "+tw+" target ("+fmt0(r.targetDiff)+")";
-    return "";}
-  function renderReco(){
-    var card=$("#recoCard");if(!card)return;
-    var items=state.rows.filter(function(r){return r.action!=="Ok";});
-    var cnt=$("#recoCount");if(cnt)cnt.textContent=items.length?String(items.length):"";
-    card.style.display=state.rows.length?"block":"none";
-    if(!items.length){$("#recoBody").innerHTML='<div class="nm2" style="text-align:center;padding:20px 0">Nessuna azione da segnalare, portafoglio in linea con i target.</div>';return;}
-    items=items.slice().sort(function(a,b){return Math.abs(b.targetDiff||0)-Math.abs(a.targetDiff||0);});
-    $("#recoBody").innerHTML=items.map(function(r){
-      return '<div class="reco-row" data-recoticker="'+r.id+'">'+
-        '<span class="pillbadge '+ACTION_CLASS[r.action]+'">'+ACTION_SYMBOL[r.action]+' '+esc(r.action)+'</span>'+
-        '<div class="rname"><b class="tk">'+esc(r.ticker)+'</b><div class="nm2">'+recoReason(r)+'</div></div></div>';
-    }).join("");
-  }
-  $("#recoBody").addEventListener("click",function(e){var row=e.target.closest("[data-recoticker]");if(!row)return;
-    var tr=document.getElementById("posrow-"+row.getAttribute("data-recoticker"));
-    if(tr){tr.scrollIntoView({behavior:"smooth",block:"center"});tr.classList.add("row-flash");setTimeout(function(){tr.classList.remove("row-flash");},1600);}});
   function fillSel(id,field,label){var sel=$("#"+id);if(!sel)return;var cur=state.filters[field],vals={};
     state.rows.forEach(function(r){var v=((r[field]||"")+"").trim();if(v)vals[v]=1;});
     sel.innerHTML='<option value="">'+label+'</option>'+Object.keys(vals).sort().map(function(v){return '<option'+(v===cur?' selected':'')+'>'+esc(v)+'</option>';}).join("");
