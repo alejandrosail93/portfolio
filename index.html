@@ -280,8 +280,10 @@
     .btn{min-height:44px}
     .greet{margin-top:12px;font-size:13px}
     .pills-inner{gap:5px}.pill{padding:11px 14px}
-    .card .bd{padding:15px}.card .hd{padding:14px 16px}
+    .card .bd{padding:15px}.card .hd{padding:14px 16px;flex-wrap:wrap}
     .card .hd h2{font-size:14px}
+    #allocSeg{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
+    #allocSeg button{flex:none}
     .filters{padding:12px 16px 0}.filters .fsearch{max-width:none;flex:1 1 100%}
     table{font-size:12.5px}thead th,tbody td{padding:9px 8px}
     .hstat .v{font-size:20px}
@@ -344,6 +346,12 @@
       <div class="hd">
         <h2><span class="chip-ic ic-gold">◑</span> Allocazione</h2>
         <span class="seg" id="allocSeg"><button data-view="pos" class="on">Titolo</button><button data-view="cls">Categoria</button><button data-view="sector">Settore</button><button data-view="country">Paese</button></span>
+      </div>
+      <div class="filters">
+        <select id="allocFltCls"><option value="">Categoria: tutte</option></select>
+        <select id="allocFltSector"><option value="">Settore: tutti</option></select>
+        <select id="allocFltCountry"><option value="">Paese: tutti</option></select>
+        <button class="fclear" id="allocFltClear">Azzera</button>
       </div>
       <div class="bd"><div class="chart-row"><div id="donut"></div><div class="legend" id="legend"></div></div></div>
     </div>
@@ -749,7 +757,7 @@
   var KEY="pf_dash_v1";
   var DEFAULT_FX={EUR:1,USD:0.92,GBP:1.17,CHF:1.04,SEK:0.088,NOK:0.086,DKK:0.134,JPY:0.0060,CAD:0.68,AUD:0.61,CNY:0.127};
   var BASE_COUNTRIES=["Italia","Stati Uniti","Europa","Eurozona","Germania","Regno Unito","Giappone","Cina","Mercati Emergenti","Asia-Pacifico","Nord America","Globale"];
-  var state={rows:[],watchlist:[],view:"pos",sortK:"value",sortDir:-1,cur:"€",base:"EUR",targets:{},fx:{EUR:1},history:[],filters:{search:"",cls:"",sector:"",country:"",action:""},theme:"light",hideValues:false,customCountries:[],lastUpdate:0,updatedAt:0};
+  var state={rows:[],watchlist:[],view:"pos",sortK:"value",sortDir:-1,cur:"€",base:"EUR",targets:{},fx:{EUR:1},history:[],filters:{search:"",cls:"",sector:"",country:"",action:""},allocFilters:{cls:"",sector:"",country:""},theme:"light",hideValues:false,customCountries:[],lastUpdate:0,updatedAt:0};
   var PAL=["#d9a531","#295a86","#3f9e8f","#dd7a54","#6aa0d0","#eec25a","#4a9d8e","#c47f2e","#5aa469","#a2946f","#7fb0d6","#3d7ea6"];
   var $=function(s){return document.querySelector(s);};
   var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};
@@ -822,7 +830,7 @@
       $("#hBest").innerHTML='<span class="up">▲ '+esc(b.ticker)+'</span> '+pc(b.pnlpc);
       $("#hWorst").innerHTML=w!==b?'<span class="down">▼ '+esc(w.ticker)+'</span> '+pc(w.pnlpc):'';
     }else{$("#hBest").textContent="–";$("#hWorst").textContent="";}
-    renderTable();renderDonut(total);renderPerf();
+    renderTable();renderDonut();renderPerf();
     $("#empty").style.display=state.rows.length?"none":"block";
     $("#tbl").style.display=state.rows.length?"table":"none";
   }
@@ -857,25 +865,40 @@
     sel.value=cur;}
   function populateFilters(){fillSel("fltCls","cls","Categoria: tutte");fillSel("fltSector","sector","Settore: tutti");fillSel("fltCountry","country","Paese: tutti");
     var s=$("#fltSearch");if(s&&document.activeElement!==s&&s.value!==state.filters.search)s.value=state.filters.search;}
-  function groups(){var view=state.view;
+  // ---------- allocazione: filtri indipendenti per il grafico a torta ----------
+  function allocFilteredRows(){var f=state.allocFilters;
+    return state.rows.filter(function(r){
+      if(f.cls&&(r.cls||"")!==f.cls)return false;
+      if(f.sector&&(r.sector||"")!==f.sector)return false;
+      if(f.country&&(r.country||"")!==f.country)return false;
+      return true;});}
+  function allocTotal(){return allocFilteredRows().reduce(function(a,r){return a+r.value;},0);}
+  function fillAllocSel(id,field,label){var sel=$("#"+id);if(!sel)return;var cur=state.allocFilters[field],vals={};
+    state.rows.forEach(function(r){var v=((r[field]||"")+"").trim();if(v)vals[v]=1;});
+    sel.innerHTML='<option value="">'+label+'</option>'+Object.keys(vals).sort().map(function(v){return '<option'+(v===cur?' selected':'')+'>'+esc(v)+'</option>';}).join("");
+    sel.value=cur;}
+  function populateAllocFilters(){fillAllocSel("allocFltCls","cls","Categoria: tutte");fillAllocSel("allocFltSector","sector","Settore: tutti");fillAllocSel("allocFltCountry","country","Paese: tutti");}
+  function groups(){var view=state.view,rows=allocFilteredRows();
     if(view==="pos"){
       // vista Titolo: una fetta per ogni posizione, mai raggruppate per nome/ticker uguale
-      return state.rows.map(function(r){return{name:(r.name||"").trim()||(r.ticker||"").trim()||"—",value:r.value};})
+      return rows.map(function(r){return{name:(r.name||"").trim()||(r.ticker||"").trim()||"—",value:r.value};})
         .sort(function(a,b){return b.value-a.value;});
     }
     var m={};
-    state.rows.forEach(function(r){var key=((r[view]||"")+"").trim()||"—";m[key]=(m[key]||0)+r.value;});
+    rows.forEach(function(r){var key=((r[view]||"")+"").trim()||"—";m[key]=(m[key]||0)+r.value;});
     return Object.keys(m).map(function(k){return{name:k,value:m[k]};}).sort(function(a,b){return b.value-a.value;});}
-  function renderDonut(total){
-    var arr=groups(),cx=76,cy=76,mid=53,sw=26,circ=2*Math.PI*mid,off=0,segs="";
+  function renderDonut(){
+    var total=allocTotal(),arr=groups(),circ=2*Math.PI*53,off=0,segs="";
+    var filteredEmpty=state.rows.length>0&&allocFilteredRows().length===0;
     if(total<=0||!arr.length){segs='<circle cx="76" cy="76" r="53" fill="none" stroke="rgba(140,140,150,.2)" stroke-width="26"/>';}
     else arr.forEach(function(g,i){var len=g.value/total*circ,col=PAL[i%PAL.length],p=g.value/total*100;
       segs+='<circle class="donut-seg" data-name="'+esc(g.name)+'" data-pct="'+p.toLocaleString("it-IT",{maximumFractionDigits:1})+'" cx="76" cy="76" r="53" fill="none" stroke="'+col+'" stroke-width="26" stroke-dasharray="'+len+' '+(circ-len)+'" stroke-dashoffset="'+(-off)+'" transform="rotate(-90 76 76)"/>';off+=len;});
     $("#donut").innerHTML='<div class="dtip" id="donutTip"></div><svg width="152" height="152" viewBox="0 0 152 152">'+segs+
       '<text x="76" y="71" text-anchor="middle" font-size="11" style="fill:var(--muted)">Totale</text>'+
       '<text x="76" y="90" text-anchor="middle" font-size="15" font-weight="800" style="fill:var(--ink)">'+fmt0(total)+'</text></svg>';
-    $("#legend").innerHTML=arr.map(function(g,i){var p=total>0?g.value/total*100:0;
-      return '<div class="leg"><span class="dot" style="background:'+PAL[i%PAL.length]+'"></span><span class="nm">'+esc(g.name)+'</span><span class="pc">'+p.toLocaleString("it-IT",{maximumFractionDigits:1})+'%</span></div>';}).join("")||'<div class="nm2">Nessun dato</div>';
+    $("#legend").innerHTML=arr.length?arr.map(function(g,i){var p=total>0?g.value/total*100:0;
+      return '<div class="leg"><span class="dot" style="background:'+PAL[i%PAL.length]+'"></span><span class="nm">'+esc(g.name)+'</span><span class="pc">'+p.toLocaleString("it-IT",{maximumFractionDigits:1})+'%</span></div>';}).join("")
+      :(filteredEmpty?'<div class="nm2">Nessun titolo corrisponde ai filtri.</div>':'<div class="nm2">Nessun dato</div>');
     wireDonutTip();
   }
   function wireDonutTip(){
@@ -1067,6 +1090,9 @@
   ["fltCls","fltSector","fltCountry","fltAction"].forEach(function(id){var f=id.replace("flt","").toLowerCase();
     $("#"+id).addEventListener("change",function(){state.filters[f]=this.value;renderTable();});});
   $("#fltClear").addEventListener("click",function(){state.filters={search:"",cls:"",sector:"",country:"",action:""};$("#fltSearch").value="";$("#fltAction").value="";populateFilters();renderTable();});
+  ["allocFltCls","allocFltSector","allocFltCountry"].forEach(function(id){var f=id.replace("allocFlt","").toLowerCase();
+    $("#"+id).addEventListener("change",function(){state.allocFilters[f]=this.value;renderDonut();});});
+  $("#allocFltClear").addEventListener("click",function(){state.allocFilters={cls:"",sector:"",country:""};populateAllocFilters();renderDonut();});
 
   // ---------- CURRENCIES (FX) ----------
   function renderFx(){var used={};state.rows.forEach(function(r){var c=r.currency||state.base;if(c!==state.base)used[c]=1;});
@@ -1422,7 +1448,7 @@
     sync={url:"",key:"",pid:"main"};saveSyncCfg();updateFooter();setCloudStatus("");fillSyncForm();setSyncStatus("Disconnesso: modalità solo locale.");});
 
   // ---------- master render ----------
-  function render(){var total=enrich();populateFilters();renderOverview(total);renderWatchlist();renderRebalance(total);renderDividends();health(total);renderRisk(total);renderFactor(total);renderHistory();simulate();save();}
+  function render(){var total=enrich();populateFilters();populateAllocFilters();renderOverview(total);renderWatchlist();renderRebalance(total);renderDividends();health(total);renderRisk(total);renderFactor(total);renderHistory();simulate();save();}
 
   // ---------- nav ----------
   $$(".pill").forEach(function(p){p.addEventListener("click",function(){
@@ -1572,7 +1598,7 @@
   document.addEventListener("keydown",function(e){if(e.key==="Escape")closeAll();});
   $$("#allocSeg button").forEach(function(b){b.addEventListener("click",function(){
     $$("#allocSeg button").forEach(function(x){x.classList.remove("on");});b.classList.add("on");
-    state.view=b.getAttribute("data-view");renderDonut(enrich());});});
+    state.view=b.getAttribute("data-view");enrich();renderDonut();});});
 
   loadSyncCfg();loadBenchCache();load();applyTheme();applyHideValues();buildCountryList();render();updateFooter();
   if(state.rows.length){if(state.lastUpdate)setStatus("· ultimo aggiornamento alle "+fmtTime(state.lastUpdate));refreshPrices(true);}
